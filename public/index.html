@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Crewroom</title>
     <style>
+        /* One screen tall, like a chat app: a sidebar (rooms, agents, tasks) and the chat. Only the lists
+           scroll, so typing or pasting in the box can never move the page. */
+        html, body { height: 100%; margin: 0; }
         body {
             font-family: sans-serif;
-            max-width: 700px;
-            margin: auto;
-            padding: 20px 16px;
             background-color: #121212;
             color: #E0E0E0;
+            display: flex;
         }
         input, button {
             background-color: #1E1E1E;
@@ -27,86 +28,131 @@
             transition: background-color 0.2s;
         }
         button:hover { background-color: #3D3D3D; }
+        button:disabled { opacity: 0.5; cursor: default; }
+        [hidden] { display: none !important; }
         .row { display: flex; gap: 6px; align-items: center; }
         .grow { flex-grow: 1; min-width: 0; }
         .muted { color: #888; font-size: 0.85em; }
-        .room {
-            display: flex; gap: 8px; align-items: center;
-            padding: 10px; margin-bottom: 6px;
-            background: #1A1A1A; border: 1px solid #333; border-radius: 4px;
-            cursor: pointer;
+
+        #sidebar {
+            width: 260px; flex-shrink: 0;
+            background: #181818; border-right: 1px solid #2A2A2A;
+            display: flex; flex-direction: column; min-height: 0;
         }
-        .room:hover { border-color: #4A90E2; }
-        .room .name { font-weight: bold; overflow-wrap: anywhere; }
-        #messages {
-            height: 60vh;
-            border: 1px solid #333;
-            padding: 10px;
-            overflow-y: auto;
-            margin: 10px 0;
-            background: #1A1A1A;
-            border-radius: 4px;
-        }
+        #sidebar h1 { font-size: 1.1em; margin: 0; padding: 14px 14px 10px; }
+        #sidebar-scroll { flex: 1; overflow-y: auto; padding: 0 8px 12px; }
+        .section { margin-top: 14px; }
+        .section-title { text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.72em; color: #888; padding: 0 6px 6px; display: flex; align-items: center; }
+        .section-title .grow { flex-grow: 1; }
+        .section-title button { padding: 0 6px; font-size: 1.2em; background: none; border: none; color: #888; }
+        .section-title button:hover { color: #E0E0E0; }
+        .item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 4px; font-size: 0.92em; }
+        .room-item { cursor: pointer; color: #BBB; }
+        .room-item:hover { background: #242424; }
+        .room-item.active { background: #2F4A75; color: #FFF; }
+        .room-item.unread { color: #FFF; font-weight: bold; }
+        .room-item .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .badge { margin-left: auto; background: #4A90E2; color: #FFF; border-radius: 9px; padding: 0 7px; font-size: 0.78em; font-weight: bold; }
+        .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; border: 1px solid #666; box-sizing: border-box; }
+        .dot.on { background: #7BD88F; border-color: #7BD88F; }
+        .dot.busy { background: #8AB4F8; border-color: #8AB4F8; }
+        .dot.stuck { background: #F0B35A; border-color: #F0B35A; }
+        .agent-item .sub { color: #888; font-size: 0.8em; margin-left: auto; white-space: nowrap; }
+        .task-item { display: block; padding: 5px 8px; font-size: 0.85em; }
+        .task-item .who { color: #8AB4F8; }
+        .task-item .files { color: #777; font-size: 0.9em; overflow-wrap: anywhere; }
+        #new-room-row { padding: 0 6px 6px; }
+        #new-room-row input { padding: 5px 7px; font-size: 0.9em; }
+
+        #main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+        #header { padding: 10px 16px; border-bottom: 1px solid #2A2A2A; }
+        #header b { font-size: 1.05em; }
+        #header button { padding: 5px 9px; font-size: 0.85em; }
+        #delete-room:hover { border-color: #E57373; }
+        #messages { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px; }
+        #empty { flex: 1; display: flex; align-items: center; justify-content: center; color: #777; }
+        #composer { padding: 8px 16px 10px; border-top: 1px solid #2A2A2A; }
+
         .msg-container {
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             padding: 8px;
             border-radius: 4px;
-            background-color: #252525;
+            background-color: #1E1E1E;
             white-space: pre-wrap;
             overflow-wrap: anywhere;
         }
         .msg-human { border-left: 4px solid #4A90E2; }
         .msg-agent { border-left: 4px solid #BB86FC; }
         .msg-for-me { border-left: 4px solid #F0B35A; background-color: #3A2F1A; box-shadow: 0 0 0 1px #6B4E1F inset; }
+        .msg-for-me::before { content: 'For you'; float: right; margin-left: 8px; font-size: 0.75em; font-weight: bold; color: #F0B35A; }
         .push-actions { margin-top: 8px; display: flex; gap: 6px; align-items: center; }
         .push-actions .go { background: #2E5E3A; border-color: #3F8A52; color: #E8FFE8; font-weight: bold; }
         .push-actions .go:hover { background: #3F8A52; }
-        .msg-for-me::before { content: 'For you'; float: right; margin-left: 8px; font-size: 0.75em; font-weight: bold; color: #F0B35A; }
         .time { color: #777; font-size: 0.8em; margin-left: 6px; }
-        .chip { display: inline-block; margin: 0 6px 4px 0; padding: 2px 8px; border-radius: 10px; border: 1px solid #333; color: #888; font-size: 0.85em; }
-        .chip.on { color: #7BD88F; border-color: #2E5E3A; }
-        .chip.stuck { color: #F0B35A; border-color: #6B4E1F; }
-        .pause-banner { margin: 6px 0; padding: 8px 10px; border-radius: 4px; border: 1px solid #6B4E1F; background: #3A2F1A; color: #F0B35A; font-size: 0.9em; }
-        .pause-banner.soon { border-color: #333; background: none; color: #888; }
-        .chip.busy { color: #8AB4F8; border-color: #2F4A75; }
-        .working { color: #8AB4F8; font-size: 0.85em; min-height: 1.2em; margin-bottom: 4px; font-style: italic; }
-        textarea { background-color: #1E1E1E; color: #E0E0E0; border: 1px solid #333; padding: 8px; border-radius: 4px; font: inherit; resize: vertical; min-height: 38px; max-height: 40vh; }
-        .hint { color: #666; font-size: 0.8em; margin-top: 4px; }
         .del { float: right; padding: 0 6px; background: none; border: none; color: #777; }
         .del:hover { color: #E57373; background: none; }
-        #delete-room:hover { border-color: #E57373; }
-        h2 { margin-bottom: 12px; }
+        .msg-image { display: block; max-width: 100%; max-height: 300px; margin-top: 6px; border-radius: 4px; cursor: zoom-in; }
+
+        .pause-banner { margin-bottom: 6px; padding: 8px 10px; border-radius: 4px; border: 1px solid #6B4E1F; background: #3A2F1A; color: #F0B35A; font-size: 0.9em; }
+        .pause-banner.soon { border-color: #333; background: none; color: #888; }
+        .working { color: #8AB4F8; font-size: 0.85em; min-height: 1.2em; margin-bottom: 4px; font-style: italic; }
+        textarea { background-color: #1E1E1E; color: #E0E0E0; border: 1px solid #333; padding: 8px; border-radius: 4px; font: inherit; resize: none; min-height: 38px; max-height: 30vh; overflow-y: auto; box-sizing: border-box; }
+        .hint { color: #666; font-size: 0.8em; margin-top: 4px; }
+        #attachments { display: flex; flex-wrap: wrap; gap: 6px; }
+        #attachments:not(:empty) { margin-bottom: 6px; }
+        .attachment { position: relative; }
+        .attachment img { height: 64px; border-radius: 4px; border: 1px solid #333; display: block; }
+        .attachment button { position: absolute; top: 2px; right: 2px; padding: 0 5px; font-size: 0.8em; }
+        #main.dropping #messages { outline: 2px dashed #4A90E2; outline-offset: -6px; }
+
+        /* Narrow windows: the sidebar sits above the chat and scrolls on its own. */
+        @media (max-width: 700px) {
+            body { flex-direction: column; }
+            #sidebar { width: auto; max-height: 35vh; border-right: none; border-bottom: 1px solid #2A2A2A; }
+        }
     </style>
 </head>
 <body>
-    <h2>Crewroom</h2>
-
-    <div id="list-screen">
-        <div class="row" style="margin-bottom: 12px;">
-            <input id="new-room" class="grow" placeholder="New room name, e.g. My Project">
-            <button id="create">Create room</button>
+    <nav id="sidebar">
+        <h1>Crewroom</h1>
+        <div id="sidebar-scroll">
+            <div class="section">
+                <div class="section-title"><span class="grow">Rooms</span><button id="add-room" title="New room">+</button></div>
+                <div class="row" id="new-room-row" hidden>
+                    <input id="new-room" class="grow" placeholder="Room name, then Enter">
+                </div>
+                <div id="rooms"></div>
+            </div>
+            <div class="section">
+                <div class="section-title">Agents</div>
+                <div id="agents"></div>
+            </div>
+            <div class="section">
+                <div class="section-title">Open tasks</div>
+                <div id="tasks"></div>
+            </div>
         </div>
-        <div class="muted" id="listening-list" style="margin-bottom: 10px;"></div>
-        <div id="rooms"></div>
-    </div>
+    </nav>
 
-    <div id="chat-screen" style="display: none;">
-        <div class="row">
-            <button id="back">&larr; Rooms</button>
+    <main id="main">
+        <div id="empty">Pick a room on the left, or make one with +.</div>
+        <div id="header" class="row" hidden>
             <div class="grow"><b id="room-name"></b> <span class="muted" id="room-id"></span></div>
             <button id="rename">Rename</button>
             <button id="delete-room">Delete room</button>
         </div>
-        <div class="muted" id="listening" style="margin-top: 8px;"></div>
-        <div id="messages"></div>
-        <div class="pause-banner" id="pause-banner" hidden></div>
-        <div class="working" id="working"></div>
-        <div class="row">
-            <textarea id="message-input" class="grow" rows="2" placeholder="Give an instruction... (a list is fine: one item per line)"></textarea>
-            <button id="send">Send</button>
+        <div id="messages" hidden></div>
+        <div id="composer" hidden>
+            <div class="pause-banner" id="pause-banner" hidden></div>
+            <div class="working" id="working"></div>
+            <div id="attachments"></div>
+            <div class="row">
+                <textarea id="message-input" class="grow" rows="1" placeholder="Give an instruction... (a list is fine: one item per line)"></textarea>
+                <button id="send">Send</button>
+            </div>
+            <div class="hint">Enter sends · Shift+Enter or Alt+Enter adds a new line · paste or drop images to attach them</div>
         </div>
-        <div class="hint">Enter sends · Shift+Enter or Alt+Enter adds a new line</div>
-    </div>
+    </main>
 
     <script>
         // Your name in the chatroom. The hub skips desktop toasts for your own messages.
@@ -116,6 +162,17 @@
         let lastMsgId = 0;
         let poller = null;
         const $ = (id) => document.getElementById(id);
+        const el = (tag, props = {}, ...children) => { const node = Object.assign(document.createElement(tag), props); node.append(...children); return node; };
+
+        // The newest message id seen in each room, kept in this browser, so rooms with news stand out.
+        const SEEN_KEY = 'crewroom-seen';
+        let seen = {};
+        try { seen = JSON.parse(localStorage.getItem(SEEN_KEY)) || {}; } catch { /* storage blocked: every room starts as read */ }
+        function markSeen(room, id) {
+            if (!id || (seen[room] || 0) >= id) return;
+            seen[room] = id;
+            try { localStorage.setItem(SEEN_KEY, JSON.stringify(seen)); } catch { /* not important */ }
+        }
 
         async function api(path, method = 'GET', body) {
             const res = await fetch(path, body ? { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { method });
@@ -125,27 +182,21 @@
         }
 
         // Text, not HTML, everywhere below: a message or room name must never run as markup in this page.
+        let roomNames = {};
         async function showRooms() {
-            clearInterval(poller);
-            currentRoom = '';
-            history.replaceState(null, '', location.pathname);
-            $('chat-screen').style.display = 'none';
-            $('list-screen').style.display = 'block';
-            const { rooms } = await api('/rooms');
+            let rooms;
+            try { ({ rooms } = await api('/rooms')); } catch { return; }
+            roomNames = Object.fromEntries(rooms.map((r) => [r.room_id, r.name]));
             const list = $('rooms');
             list.replaceChildren();
-            if (rooms.length === 0) list.append(Object.assign(document.createElement('p'), { className: 'muted', textContent: 'No rooms yet. Create one per project.' }));
+            if (!rooms.length) list.append(el('div', { className: 'item muted', textContent: 'No rooms yet.' }));
             for (const room of rooms) {
-                const row = document.createElement('div');
-                row.className = 'room';
-                const text = document.createElement('div');
-                text.className = 'grow';
-                const name = Object.assign(document.createElement('div'), { className: 'name', textContent: room.name });
-                const info = Object.assign(document.createElement('div'), { className: 'muted', textContent: `id: ${room.room_id} · ${room.messages} message${room.messages === 1 ? '' : 's'}` });
-                text.append(name, info);
-                const rename = Object.assign(document.createElement('button'), { textContent: 'Rename' });
-                rename.onclick = (e) => { e.stopPropagation(); renameRoom(room.room_id, room.name).then(showRooms); };
-                row.append(text, rename);
+                // First visit to a room: count it as read rather than flagging its whole history.
+                if (seen[room.room_id] === undefined) { seen[room.room_id] = 0; markSeen(room.room_id, room.last_id); }
+                const fresh = room.room_id !== currentRoom && (room.last_id || 0) > (seen[room.room_id] || 0);
+                const row = el('div', { className: 'item room-item' + (room.room_id === currentRoom ? ' active' : '') + (fresh ? ' unread' : ''), title: `id: ${room.room_id} · ${room.messages} messages` },
+                    el('span', { textContent: '#' }), el('span', { className: 'name', textContent: room.name }));
+                if (fresh) row.append(el('span', { className: 'badge', textContent: 'new' }));
                 row.onclick = () => openRoom(room.room_id, room.name);
                 list.append(row);
             }
@@ -164,22 +215,28 @@
             try {
                 const room = await api('/rooms', 'POST', { name });
                 $('new-room').value = '';
+                $('new-room-row').hidden = true;
                 openRoom(room.room_id, room.name);
             } catch (err) { alert(err.message); }
+        }
+
+        function showChat(on) {
+            $('empty').hidden = on;
+            for (const id of ['header', 'messages', 'composer']) $(id).hidden = !on;
         }
 
         function openRoom(id, name) {
             currentRoom = id;
             lastMsgId = 0;
-            location.hash = encodeURIComponent(id);
+            history.replaceState(null, '', '#' + encodeURIComponent(id));
             $('room-name').textContent = name;
             $('room-id').textContent = `id: ${id}`;
             $('messages').replaceChildren();
-            $('list-screen').style.display = 'none';
-            $('chat-screen').style.display = 'block';
+            showChat(true);
             clearInterval(poller);
             poller = setInterval(fetchMessages, 2000);
             fetchMessages();
+            showRooms();
             $('message-input').focus();
         }
 
@@ -192,6 +249,7 @@
 
         async function fetchMessages() {
             const room = currentRoom;
+            if (!room) return;
             try {
                 const data = await api(`/chat/${encodeURIComponent(room)}?last_msg_id=${lastMsgId}`);
                 if (room !== currentRoom || !data.new_messages.length) return;
@@ -200,59 +258,128 @@
                 for (const msg of data.new_messages) {
                     if (msg.id <= lastMsgId) continue;
                     const mine = msg.agent_id === ME || msg.agent_id === 'Human';
-                    const row = document.createElement('div');
+                    const row = el('div');
                     row.dataset.id = msg.id;
                     row.className = `msg-container ${mine ? 'msg-human' : 'msg-agent'}${!mine && addressedToMe(msg.content) ? ' msg-for-me' : ''}`;
-                    const who = Object.assign(document.createElement('b'), { textContent: msg.agent_id });
-                    const when = Object.assign(document.createElement('span'), { className: 'time', textContent: new Date(msg.timestamp + 'Z').toLocaleString() });
-                    const del = Object.assign(document.createElement('button'), { className: 'del', textContent: '×', title: 'Delete this message' });
+                    const who = el('b', { textContent: msg.agent_id });
+                    const when = el('span', { className: 'time', textContent: new Date(msg.timestamp + 'Z').toLocaleString() });
+                    const del = el('button', { className: 'del', textContent: '×', title: 'Delete this message' });
                     del.onclick = async () => {
                         if (!confirm('Delete this message?')) return;
                         try { await api(`/chat/${encodeURIComponent(room)}/${msg.id}`, 'DELETE'); row.remove(); } catch (err) { alert(err.message); }
                     };
-                    row.append(del, who, when, document.createElement('br'), document.createTextNode(msg.content));
+                    row.append(del, who, when, el('br'));
+                    // "[image] <path>" lines show as the picture itself; everything else stays plain text.
+                    const text = [];
+                    const images = [];
+                    for (const line of msg.content.split('\n')) {
+                        const image = line.match(/^\[image\] .*[\\/](\d{14}-[0-9a-f]{8}\.(png|jpg|gif|webp|bmp))\s*$/);
+                        if (!image) { text.push(line); continue; }
+                        const img = el('img', { className: 'msg-image', src: `/uploads/${image[1]}`, title: line.slice(8) });
+                        img.onclick = () => window.open(img.src, '_blank');
+                        img.onload = () => { if (atBottom) box.scrollTop = box.scrollHeight; };
+                        images.push(img);
+                    }
+                    row.append(document.createTextNode(text.join('\n').trim()), ...images);
                     box.append(row);
                     lastMsgId = msg.id;
                 }
+                markSeen(room, lastMsgId);
                 if (atBottom) box.scrollTop = box.scrollHeight;
             } catch (err) {
                 console.error('Polling error:', err);
             }
         }
 
+        // Images waiting to go out with the next message: [{ blob, url }]. They travel in the same message as
+        // the text, so one send reaches whoever the text names, once.
+        let pending = [];
+        let sending = false;
+        function showAttachments() {
+            const list = $('attachments');
+            list.replaceChildren();
+            pending.forEach((item, i) => {
+                const x = el('button', { textContent: '×', title: 'Remove' });
+                x.onclick = () => { URL.revokeObjectURL(item.url); pending.splice(i, 1); showAttachments(); };
+                list.append(el('div', { className: 'attachment' }, el('img', { src: item.url }), x));
+            });
+        }
+        function attach(files) {
+            let added = false;
+            for (const file of files) {
+                if (!/^image\/(png|jpeg|gif|webp|bmp)$/.test(file.type)) continue;
+                pending.push({ blob: file, url: URL.createObjectURL(file) });
+                added = true;
+            }
+            if (added) showAttachments();
+            return added;
+        }
+        // The box grows with its text up to the limit in the stylesheet, then scrolls inside itself.
+        function fitInput() {
+            const input = $('message-input');
+            input.style.height = 'auto';
+            input.style.height = input.scrollHeight + 2 + 'px';
+        }
+
         async function sendMessage() {
             const input = $('message-input');
-            const content = input.value.trim();
-            if (!content || !currentRoom) return;
-            input.value = '';
+            const words = input.value.trim();
+            if ((!words && !pending.length) || !currentRoom || sending) return;
+            sending = true;
+            $('send').disabled = true;
             try {
+                const lines = [];
+                for (const item of pending) {
+                    const res = await fetch('/upload', { method: 'POST', headers: { 'Content-Type': item.blob.type }, body: item.blob });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || `upload failed (${res.status})`);
+                    lines.push(`[image] ${data.file}`);
+                }
+                const content = [words, ...lines].filter(Boolean).join('\n');
                 await api(`/chat/${encodeURIComponent(currentRoom)}`, 'POST', { agent_id: ME, content });
+                input.value = '';
+                fitInput();
+                pending.forEach((item) => URL.revokeObjectURL(item.url));
+                pending = [];
+                showAttachments();
                 await fetchMessages();
                 $('messages').scrollTop = $('messages').scrollHeight;
             } catch (err) {
-                input.value = content;
                 alert(`Not sent: ${err.message}`);
+            } finally {
+                sending = false;
+                $('send').disabled = false;
+                input.focus();
             }
         }
 
-        // The roster: who is listening, and who has messages waiting that nobody has picked up (free to
-        // check; wakes nobody). An agent that is not listening has no session running.
-        async function showListening() {
+        // The sidebar: who is listening, working or has messages piling up (free to check; wakes nobody),
+        // the open tasks, and the room-wide pause. An agent that is not listening has no session running.
+        async function showStatus() {
             try {
                 const { agents } = await api('/agents');
                 const since = (t) => { const m = Math.floor((Date.now() - t) / 60000); return m < 1 ? 'just now' : `${m} min`; };
-                for (const box of [$('listening'), $('listening-list')]) {
-                    box.replaceChildren();
-                    for (const a of agents) {
-                        const chip = document.createElement('span');
-                        chip.className = 'chip' + (a.listening ? ' on' : a.working ? ' busy' : a.waiting ? ' stuck' : '');
-                        const mark = a.listening ? '●' : a.working ? '✎' : '○';
-                        chip.textContent = `${mark} ${a.agent}${a.working ? ` · working ${since(a.working_since)}` : ''}${a.waiting ? ` · ${a.waiting} waiting` : ''}${a.open_tasks ? ` · ${a.open_tasks} task${a.open_tasks === 1 ? '' : 's'}` : ''}`;
-                        chip.title = a.listening ? 'Listening: will be woken by a message that names it.'
+                const list = $('agents');
+                list.replaceChildren();
+                if (!agents.length) list.append(el('div', { className: 'item muted', textContent: 'No agent has connected yet.' }));
+                for (const a of agents) {
+                    const state = a.listening ? 'on' : a.working ? 'busy' : a.waiting ? 'stuck' : '';
+                    const sub = [a.working ? `working ${since(a.working_since)}` : '', a.waiting ? `${a.waiting} waiting` : '', a.open_tasks ? `${a.open_tasks} task${a.open_tasks === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ');
+                    list.append(el('div', {
+                        className: 'item agent-item',
+                        title: a.listening ? 'Listening: will be woken by a message that names it.'
                             : a.working ? 'Working on something it was given; it will listen again when it finishes.'
-                            : a.waiting ? 'No session running, and messages for it are piling up. Start its session.' : 'No session running.';
-                        box.append(chip);
-                    }
+                            : a.waiting ? 'No session running, and messages for it are piling up. Start its session.' : 'No session running.',
+                    }, el('span', { className: 'dot ' + state }), el('span', { textContent: a.agent }), el('span', { className: 'sub', textContent: sub })));
+                }
+                const { tasks } = await api('/tasks');
+                const box = $('tasks');
+                box.replaceChildren();
+                if (!tasks.length) box.append(el('div', { className: 'item muted', textContent: 'None' }));
+                for (const t of tasks) {
+                    box.append(el('div', { className: 'task-item', title: t.summary },
+                        el('span', { className: 'who', textContent: `#${t.id} ${t.agent}` }), document.createTextNode(`: ${t.summary}`),
+                        el('div', { className: 'files', textContent: t.files.join(', ') })));
                 }
                 // The room-wide pause: agents wait for the owner after pause_after_messages messages without them.
                 const pause = await api('/pause');
@@ -266,9 +393,9 @@
                 const busy = agents.filter((a) => a.working);
                 $('working').textContent = busy.length ? `✎ ${busy.map((a) => `${a.agent} (${since(a.working_since)})`).join(', ')} ${busy.length === 1 ? 'is' : 'are'} working…` : '';
             } catch { /* the hub is restarting; try again next time */ }
+            showRooms();
         }
-        showListening();
-        setInterval(showListening, 5000);
+        setInterval(showStatus, 5000);
 
         // A push question from an agent gets real buttons: the click is the approval, not the text.
         async function refreshPush() {
@@ -279,18 +406,17 @@
             const current = document.querySelector('.push-actions');
             // Leave the buttons alone while nothing has changed, so a click never lands on a button being replaced.
             if (current && current.dataset.key === key && current.isConnected) return;
-            document.querySelectorAll('.push-actions').forEach((el) => el.remove());
+            document.querySelectorAll('.push-actions').forEach((node) => node.remove());
             const row = pending && document.querySelector(`.msg-container[data-id="${pending.id}"]`);
             if (!row) return;
-            const box = document.createElement('div');
-            box.className = 'push-actions';
+            const box = el('div', { className: 'push-actions' });
             box.dataset.key = key;
-            if (state.pushing) { box.textContent = 'Pushing\u2026'; row.append(box); return; }
-            const go = Object.assign(document.createElement('button'), { className: 'go', textContent: 'Approve push' });
-            const no = Object.assign(document.createElement('button'), { textContent: 'Decline' });
+            if (state.pushing) { box.textContent = 'Pushing…'; row.append(box); return; }
+            const go = el('button', { className: 'go', textContent: 'Approve push' });
+            const no = el('button', { textContent: 'Decline' });
             go.onclick = async () => {
                 if (!confirm('Run the push now?')) return;
-                try { await api('/push/approve', 'POST', { id: pending.id }); box.textContent = 'Pushing\u2026 the result will be posted here.'; }
+                try { await api('/push/approve', 'POST', { id: pending.id }); box.textContent = 'Pushing… the result will be posted here.'; }
                 catch (err) { alert(err.message); refreshPush(); }
             };
             no.onclick = async () => { try { await api('/push/decline', 'POST', {}); } catch (err) { alert(err.message); } refreshPush(); };
@@ -299,13 +425,24 @@
         }
         setInterval(refreshPush, 3000);
 
-        $('send').onclick = sendMessage;        $('create').onclick = createRoom;
-        $('back').onclick = showRooms;
+        $('send').onclick = sendMessage;
+        $('add-room').onclick = () => { $('new-room-row').hidden = !$('new-room-row').hidden; if (!$('new-room-row').hidden) $('new-room').focus(); };
+        $('new-room').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') createRoom();
+            if (e.key === 'Escape') { e.target.value = ''; $('new-room-row').hidden = true; }
+        });
         $('delete-room').onclick = async () => {
             if (!confirm(`Delete the room "${$('room-name').textContent}" and its whole chat log? This cannot be undone.`)) return;
-            try { await api(`/rooms/${encodeURIComponent(currentRoom)}`, 'DELETE'); showRooms(); } catch (err) { alert(err.message); }
+            try {
+                await api(`/rooms/${encodeURIComponent(currentRoom)}`, 'DELETE');
+                clearInterval(poller);
+                currentRoom = '';
+                history.replaceState(null, '', location.pathname);
+                showChat(false);
+                showRooms();
+            } catch (err) { alert(err.message); }
         };
-        $('rename').onclick = async () => { $('room-name').textContent = await renameRoom(currentRoom, $('room-name').textContent); };
+        $('rename').onclick = async () => { $('room-name').textContent = await renameRoom(currentRoom, $('room-name').textContent); showRooms(); };
         $('message-input').addEventListener('keydown', (e) => {
             if (e.key !== 'Enter' || e.isComposing) return;
             e.preventDefault();
@@ -318,18 +455,25 @@
                 sendMessage();
             }
         });
-        // The box grows with its text, up to the limit in the stylesheet.
-        $('message-input').addEventListener('input', (e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; });
-        $('new-room').addEventListener('keydown', (e) => { if (e.key === 'Enter') createRoom(); });
+        $('message-input').addEventListener('input', fitInput);
+        // Pasted or dropped images become attachments on the next message instead of being sent on their own.
+        $('message-input').addEventListener('paste', (e) => {
+            const files = [...(e.clipboardData?.files || [])];
+            if (files.length && attach(files)) e.preventDefault();
+        });
+        const main = $('main');
+        main.addEventListener('dragover', (e) => { if (currentRoom && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); main.classList.add('dropping'); } });
+        main.addEventListener('dragleave', (e) => { if (!main.contains(e.relatedTarget)) main.classList.remove('dropping'); });
+        main.addEventListener('drop', (e) => { e.preventDefault(); main.classList.remove('dropping'); attach([...e.dataTransfer.files]); $('message-input').focus(); });
 
-        // A link like http://localhost:3000/#my-project opens that room directly.
+        // A link like http://localhost:3000/#my-project opens that room directly; otherwise the default room.
         (async () => {
-            try { ME = (await api('/config')).owner || ME; } catch { /* keep the default */ }
-            const wanted = decodeURIComponent(location.hash.slice(1));
-            if (!wanted) return showRooms();
-            const { rooms } = await api('/rooms');
-            const room = rooms.find((r) => r.room_id === wanted);
-            openRoom(wanted, room ? room.name : wanted);
+            let config = {};
+            try { config = await api('/config'); ME = config.owner || ME; } catch { /* keep the default */ }
+            await showRooms();
+            showStatus();
+            const wanted = decodeURIComponent(location.hash.slice(1)) || config.default_room || '';
+            if (wanted && (roomNames[wanted] || location.hash)) openRoom(wanted, roomNames[wanted] || wanted);
         })();
     </script>
 </body>

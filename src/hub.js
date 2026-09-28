@@ -37,6 +37,22 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(APP, 'public')));
 
+// Images pasted or dropped on the page. Each is saved once under data/uploads and the message refers to
+// it as "[image] <full path>", so agents open it with their own file tools and it is routed like any
+// other message: by whom the text names.
+const UPLOADS = path.join(DATA, 'uploads');
+const IMAGE_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'image/bmp': 'bmp' };
+app.use('/uploads', express.static(UPLOADS));
+app.post('/upload', express.raw({ type: Object.keys(IMAGE_TYPES), limit: '25mb' }), (req, res) => {
+    const ext = IMAGE_TYPES[req.headers['content-type']];
+    if (!ext || !Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'send one png, jpeg, gif, webp or bmp image' });
+    const fs = require('fs');
+    fs.mkdirSync(UPLOADS, { recursive: true });
+    const name = `${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}-${uuidv4().slice(0, 8)}.${ext}`;
+    fs.writeFileSync(path.join(UPLOADS, name), req.body);
+    res.json({ file: path.join(UPLOADS, name), url: `/uploads/${name}` });
+});
+
 // Live feed: every bridge and page holds one of these open.
 const listeners = new Set();
 // Hooks waiting for a message: resolved when one arrives from someone else.
