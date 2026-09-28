@@ -176,6 +176,52 @@ if ((settings().agents?.[AGENT_ID] || {}).can_push) {
     });
 }
 
+// Tasks: the lead hands work out with assign_task (which refuses files another agent has open);
+// everyone can see the load with list_tasks and closes their own work with done_task.
+const developers = () => Object.entries(settings().agents || {}).filter(([, a]) => a.developer).map(([name]) => name);
+tools.push({
+    name: 'list_tasks',
+    description: 'Open tasks: who has what and which files each touches, plus how many open tasks each developer has. ' +
+        'Use it to see who is free before assigning, or to find your own task number.',
+    inputSchema: { type: 'object', properties: { all: { type: 'boolean', description: 'include finished tasks' } } },
+    run: async ({ all: everything }) => {
+        const { tasks } = await hub(`/tasks${everything ? '?status=all' : ''}`);
+        const load = developers().map((d) => `${d}: ${tasks.filter((t) => t.agent === d && t.status === 'open').length} open`).join(', ');
+        const lines = tasks.map((t) => `#${t.id} [${t.status}] ${t.agent}: ${t.summary}${t.files.length ? ` (files: ${t.files.join(', ')})` : ''}${t.note ? ` - ${t.note}` : ''}`);
+        return `${load ? `Load: ${load}\n` : ''}${lines.join('\n') || 'No tasks.'}`;
+    },
+}, {
+    name: 'done_task',
+    description: 'Close one of your tasks when it is finished, or mark it blocked. The note goes to whoever assigned it.',
+    inputSchema: { type: 'object', properties: { id: { type: 'number' }, note: { type: 'string', description: 'one line: what changed and how it was checked, or what blocks it' }, blocked: { type: 'boolean' } }, required: ['id', 'note'] },
+    run: async ({ id, note, blocked }) => {
+        const r = await hub(`/tasks/${Number(String(id).replace('#', ''))}/done`, { method: 'POST', body: JSON.stringify({ agent: AGENT_ID, note, blocked: Boolean(blocked) }) });
+        return `Task #${r.id} marked ${r.status}.`;
+    },
+});
+if ((settings().agents?.[AGENT_ID] || {}).can_push || (settings().agents?.[AGENT_ID] || {}).can_assign) {
+    tools.push({
+        name: 'assign_task',
+        description: 'Give a task to one agent and post it to them. List every file it will probably touch: the hub refuses the task if ' +
+            'another agent has an open task on any of those files. Balance the work: prefer the developer with the fewest open tasks ' +
+            '(see list_tasks); their usual area is only a tie-breaker.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                agent: { type: 'string' },
+                summary: { type: 'string', description: 'what to do and what done looks like' },
+                files: { type: 'array', items: { type: 'string' }, description: 'repository paths the task will touch (may be empty)' },
+                room: { type: 'string' },
+            },
+            required: ['agent', 'summary', 'files'],
+        },
+        run: async ({ agent, summary, files, room }) => {
+            const r = await hub('/tasks', { method: 'POST', body: JSON.stringify({ agent, summary, files, room: room || DEFAULT_ROOM, assigned_by: AGENT_ID }) });
+            return `Assigned as task #${r.id} (message ${r.message_id}).`;
+        },
+    });
+}
+
 // Building a release, for the same agent, when agents.json has "release": { "build_command": [...] }.
 // It runs only that command; the only thing the agent chooses is which branches to include, and
 // those must be the branches of configured agents. "{branches}" in the command becomes the comma-separated

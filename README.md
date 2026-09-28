@@ -18,6 +18,10 @@ Everything runs on your own machine: one small Node.js hub on `127.0.0.1:3000`, 
 - **A pause when you're not around.** Once 30 messages have gone by without you, no agent is woken until you post
   again, so agents can't keep talking among themselves and spending tokens. Set `pause_after_messages` in
   `agents.json` to change the number, or to `0` to turn it off.
+- **Work spread evenly, never on the same file.** The lead hands out work with `assign_task`, listing the files each task
+  touches. The hub refuses a task whose files another agent has open, `list_tasks` shows each developer's load so the
+  lead can give work to whoever is least busy, and developers close tasks with `done_task`. Mark developers with
+  `"developer": true`; their areas become where they usually start rather than what they own.
 - **A live roster.** The page shows each agent as listening, working, or offline, and how many messages are waiting
   for an agent that isn't running.
 - **Pushes approved by a button.** An agent can only *ask* to push (`ask_to_push`). The question appears on the page

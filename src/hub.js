@@ -23,6 +23,11 @@ db.serialize(() => {
     db.run('CREATE TABLE IF NOT EXISTS inbox (agent_id TEXT PRIMARY KEY, last_id INTEGER NOT NULL)');
     // Display names for rooms. The room id never changes, so agents keep posting to the same place.
     db.run('CREATE TABLE IF NOT EXISTS rooms (room_id TEXT PRIMARY KEY, name TEXT NOT NULL)');
+    // Tasks handed out by the lead: who has what, and which files each open task touches.
+    db.run(`CREATE TABLE IF NOT EXISTS tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, agent TEXT NOT NULL, summary TEXT NOT NULL, files TEXT NOT NULL,
+        room_id TEXT, assigned_by TEXT, status TEXT NOT NULL DEFAULT 'open', note TEXT,
+        created DATETIME DEFAULT CURRENT_TIMESTAMP, finished DATETIME)`);
 });
 const all = (sql, args) => new Promise((resolve, reject) => db.all(sql, args, (err, rows) => (err ? reject(err) : resolve(rows))));
 const get = (sql, args) => new Promise((resolve, reject) => db.get(sql, args, (err, row) => (err ? reject(err) : resolve(row))));
@@ -124,7 +129,8 @@ app.get('/agents', async (req, res) => {
             let waiting = 0;
             for (const message of unread) if (await isFor(row.agent_id, message)) waiting++;
             const busy = !listening.has(row.agent_id) && isWorking(row.agent_id);
-            agents.push({ agent: row.agent_id, listening: listening.has(row.agent_id), working: busy, working_since: busy ? working.get(row.agent_id) : null, waiting });
+            const open = (await get(`SELECT COUNT(*) AS n FROM tasks WHERE agent = ? AND status = 'open'`, [row.agent_id])).n;
+            agents.push({ agent: row.agent_id, listening: listening.has(row.agent_id), working: busy, working_since: busy ? working.get(row.agent_id) : null, waiting, open_tasks: open });
         }
         res.json({ agents });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -262,6 +268,54 @@ app.post('/push/approve', async (req, res) => {
         const lines = out.split(/\r?\n/).filter((line) => /^(DONE|STOPPED)|^\s{2}\S/.test(line)).slice(-15).join('\n');
         await postAs('hub', room, `${agent}: ${code === 0 ? 'push done' : `push failed (exit ${code})`}.\n${lines}`).catch(() => {});
     });
+});
+
+// Tasks. Files are compared case-insensitively with forward slashes; two open tasks for different
+// agents may not share a file, so parallel work never edits the same file twice.
+const normFile = (f) => String(f).trim().replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
+const taskRow = (t) => ({ ...t, files: JSON.parse(t.files) });
+
+app.get('/tasks', async (req, res) => {
+    try {
+        const status = req.query.status === 'all' ? null : 'open';
+        const rows = await all(`SELECT * FROM tasks ${status ? 'WHERE status = ?' : ''} ORDER BY id DESC LIMIT 200`, status ? [status] : []);
+        res.json({ tasks: rows.map(taskRow) });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/tasks', async (req, res) => {
+    const { agent, summary, files, assigned_by, room } = req.body || {};
+    if (!agent || !summary || !Array.isArray(files)) return res.status(400).json({ error: 'agent, summary and files (a list; may be empty) are required' });
+    try {
+        const wanted = new Set(files.map(normFile).filter(Boolean));
+        const others = await all(`SELECT * FROM tasks WHERE status = 'open' AND agent <> ?`, [agent]);
+        const clashes = others.map(taskRow).map((t) => ({ t, shared: t.files.filter((f) => wanted.has(normFile(f))) })).filter((c) => c.shared.length);
+        if (clashes.length) {
+            return res.status(409).json({ error: 'files already in an open task: ' + clashes.map((c) => `#${c.t.id} (${c.t.agent}): ${c.shared.join(', ')}`).join('; ') +
+                '. Give this task to that agent, wait for it to finish, or split the work so the files do not overlap.' });
+        }
+        const inserted = await run('INSERT INTO tasks (agent, summary, files, room_id, assigned_by) VALUES (?, ?, ?, ?, ?)',
+            [agent, summary, JSON.stringify([...wanted]), room || defaultRoom(), assigned_by || null]);
+        const fileList = wanted.size ? `\nFiles: ${[...wanted].join(', ')}` : '';
+        const posted = await postAs(assigned_by || 'hub', room || defaultRoom(),
+            `${agent}: task #${inserted.lastID}: ${summary}${fileList}\nWhen it is finished (or blocked), call done_task with #${inserted.lastID} and a one-line note.`);
+        res.json({ id: inserted.lastID, message_id: posted.id });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/tasks/:id/done', async (req, res) => {
+    const { agent, note, blocked } = req.body || {};
+    try {
+        const task = await get('SELECT * FROM tasks WHERE id = ?', [req.params.id]);
+        if (!task) return res.status(404).json({ error: `no task #${req.params.id}` });
+        if (task.status !== 'open') return res.status(409).json({ error: `task #${task.id} is already ${task.status}` });
+        if (agent && agent !== task.agent) return res.status(403).json({ error: `task #${task.id} belongs to ${task.agent}` });
+        const status = blocked ? 'blocked' : 'done';
+        await run(`UPDATE tasks SET status = ?, note = ?, finished = CURRENT_TIMESTAMP WHERE id = ?`, [status, note || null, task.id]);
+        const to = task.assigned_by && task.assigned_by !== task.agent ? task.assigned_by : owner();
+        await postAs(task.agent, task.room_id || defaultRoom(), `${to}: task #${task.id} ${status}${note ? `: ${note}` : '.'}`);
+        res.json({ id: task.id, status });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // Deleting, from the page: one message, or a whole room with its log.

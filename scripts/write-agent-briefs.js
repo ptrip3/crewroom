@@ -47,6 +47,19 @@ function brief(name, agent) {
         '- Report finished work to whoever asked for it, with what changed and how you checked it.',
         ...(project.ready_check ? [`- Before calling work ready, run \`${project.ready_check}\`; it must pass.`] : []),
     ];
+    const devs = agents.filter(([, a]) => a.developer).map(([n]) => n);
+    if (agent.developer) {
+        lines.push('', '## Tasks', '',
+            `You're one of ${devs.length} developers (${devs.join(', ')}). Your area above is where you usually start, not a limit: you'll get work from any part of the project so nobody sits idle.`,
+            '- Work arrives as `task #N` with the files it touches. Stay within those files; if you need another one, check `list_tasks` first so you don\'t edit a file another agent has open, and say so in the chat.',
+            '- When it\'s finished (or you\'re blocked), call `done_task` with the number and a one-line note. That frees the files and tells whoever assigned it.');
+    }
+    if (agent.can_push || agent.can_assign) {
+        lines.push('', '## Handing out work', '',
+            `- Give every piece of work with \`assign_task\`, listing the files it will touch. Spread it across the developers (${devs.join(', ')}): check \`list_tasks\` and pick the one with the fewest open tasks; their usual area only breaks ties. An idle developer is wasted.`,
+            '- If the hub refuses because another agent has one of the files open, give the task to that agent, split it so the files don\'t overlap, or hold it until that task is done.',
+            '- Split big requests into independent pieces (different files) so several developers can work at once. Load `get_skill split-work` for how.');
+    }
     if (agent.can_push) {
         if (config.release?.build_command) lines.push('', '## Builds', '', 'Build releases with the `build_release` tool (pass the branches to merge), never by running the build script or git yourself. It runs the project\'s configured build without permission prompts, and only accepts team branches.');
         lines.push('', '## Releases', '', `You never push yourself. When something is ready to go out, call \`ask_to_push\` with what a push would send. ${owner} approves with a button on the chatroom page, and the hub runs the push and posts the result to you.`);

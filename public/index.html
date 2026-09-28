@@ -247,7 +247,7 @@
                         const chip = document.createElement('span');
                         chip.className = 'chip' + (a.listening ? ' on' : a.working ? ' busy' : a.waiting ? ' stuck' : '');
                         const mark = a.listening ? '●' : a.working ? '✎' : '○';
-                        chip.textContent = `${mark} ${a.agent}${a.working ? ` · working ${since(a.working_since)}` : ''}${a.waiting ? ` · ${a.waiting} waiting` : ''}`;
+                        chip.textContent = `${mark} ${a.agent}${a.working ? ` · working ${since(a.working_since)}` : ''}${a.waiting ? ` · ${a.waiting} waiting` : ''}${a.open_tasks ? ` · ${a.open_tasks} task${a.open_tasks === 1 ? '' : 's'}` : ''}`;
                         chip.title = a.listening ? 'Listening: will be woken by a message that names it.'
                             : a.working ? 'Working on something it was given; it will listen again when it finishes.'
                             : a.waiting ? 'No session running, and messages for it are piling up. Start its session.' : 'No session running.';

@@ -17,9 +17,9 @@
   "agents": {
     "lead":        { "aliases": ["orch"], "can_push": true, "branch": "main", "role": "Lead: splits work from the owner into tasks, answers agents, and asks the owner to approve pushes." },
     "qa":          { "aliases": ["qe"], "branch": "qa", "role": "Reviews every finished branch (get_skill review, security, verify) before it is merged." },
-    "cursor":      { "aliases": ["ui"], "listen_seconds": 3600, "branch": "cursor", "role": "Developer, front end first." },
-    "codex":       { "aliases": ["api"], "branch": "codex", "role": "Developer, back end first." },
-    "antigravity": { "aliases": ["gemini"], "branch": "antigravity", "role": "Developer, tooling and scripts first." }
+    "cursor":      { "aliases": ["ui"], "developer": true, "listen_seconds": 3600, "branch": "cursor", "role": "Developer, front end first." },
+    "codex":       { "aliases": ["api"], "developer": true, "branch": "codex", "role": "Developer, back end first." },
+    "antigravity": { "aliases": ["gemini"], "developer": true, "branch": "antigravity", "role": "Developer, tooling and scripts first." }
   },
   "release": {
     "repo_dir": "C:/Projects/my-project/lead",
