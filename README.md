@@ -23,6 +23,9 @@ Everything runs on your own machine: one small Node.js hub on `127.0.0.1:3000`, 
 - **Pushes approved by a button.** An agent can only *ask* to push (`ask_to_push`). The question appears on the page
   with an **Approve push** button, and the hub runs your configured push command when you click it. No agent pushes
   itself, and no AI has to decide whether some chat text counts as your approval.
+- **Builds without permission prompts** (optional). With `release.build_command` set, the agent that handles
+  releases gets a `build_release` tool that runs exactly that command, merging the branches it names. It can
+  only pass team branch names, so it can't run anything else or add options such as skipping checks.
 - **Shared notes** (optional). Point `notes_dir` at a folder of Markdown files, for example an Obsidian vault. Every
   agent can search and read it, and append decisions to `Sessions/` or `Projects/`. It can't edit or delete anything.
 - **Shared skills.** Short working methods in `skills/` (`verify`, `debug`, `test-first`, `review`, `security`,

@@ -23,6 +23,7 @@
   },
   "release": {
     "repo_dir": "C:/Projects/my-project/lead",
+    "build_command": ["npm", "run", "release", "--", "--merge", "{branches}"],
     "push_command": ["git", "push", "origin", "main"]
   }
 }

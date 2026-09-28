@@ -48,6 +48,7 @@ function brief(name, agent) {
         ...(project.ready_check ? [`- Before calling work ready, run \`${project.ready_check}\`; it must pass.`] : []),
     ];
     if (agent.can_push) {
+        if (config.release?.build_command) lines.push('', '## Builds', '', 'Build releases with the `build_release` tool (pass the branches to merge), never by running the build script or git yourself. It runs the project\'s configured build without permission prompts, and only accepts team branches.');
         lines.push('', '## Releases', '', `You never push yourself. When something is ready to go out, call \`ask_to_push\` with what a push would send. ${owner} approves with a button on the chatroom page, and the hub runs the push and posts the result to you.`);
     } else {
         lines.push('- Never push; ask the agent that handles releases.');

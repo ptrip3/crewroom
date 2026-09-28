@@ -175,6 +175,38 @@ if ((settings().agents?.[AGENT_ID] || {}).can_push) {
         },
     });
 }
+
+// Building a release, for the same agent, when agents.json has "release": { "build_command": [...] }.
+// It runs only that command; the only thing the agent chooses is which branches to include, and
+// those must be the branches of configured agents. "{branches}" in the command becomes the comma-separated
+// list (an argument holding only "{branches}" is dropped, with the one before it, when none are given).
+// This keeps a build free of shell-permission prompts without letting the agent run anything else.
+const buildCommand = settings().release?.build_command;
+if ((settings().agents?.[AGENT_ID] || {}).can_push && Array.isArray(buildCommand) && buildCommand.length) {
+    tools.push({
+        name: 'build_release',
+        description: 'Build a release with the project\'s configured build command, merging the given branches first. ' +
+            'Only branches of team members are accepted; an empty list rebuilds as it is. Takes minutes; returns the end of the output.',
+        inputSchema: { type: 'object', properties: { branches: { type: 'array', items: { type: 'string' } } }, required: ['branches'] },
+        run: async ({ branches }) => {
+            const known = new Set(Object.entries(settings().agents || {}).map(([name, a]) => a.branch || name));
+            const picked = [...new Set((branches || []).map(String))];
+            const unknown = picked.filter((b) => !known.has(b));
+            if (unknown.length) throw new Error(`not a team branch: ${unknown.join(', ')} (known: ${[...known].join(', ')})`);
+            const args = [];
+            for (let i = 1; i < buildCommand.length; i++) {
+                const part = buildCommand[i];
+                if (part === '{branches}') { if (picked.length) args.push(picked.join(',')); else args.pop(); continue; }
+                args.push(part.split('{branches}').join(picked.join(',')));
+            }
+            const result = require('child_process').spawnSync(buildCommand[0], args, {
+                cwd: settings().release.repo_dir, encoding: 'utf8', timeout: 45 * 60 * 1000, windowsHide: true, maxBuffer: 50 * 1024 * 1024,
+            });
+            const out = `${result.stdout || ''}${result.stderr || ''}`.trim().split(/\r?\n/).slice(-40).join('\n');
+            return `exit code ${result.status ?? result.error?.message}\n${out}`;
+        },
+    });
+}
 function notesIn(dir) {
     const out = [];
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
