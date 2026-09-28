@@ -4,6 +4,10 @@
 //   node inbox-hook.js claude-stop     Claude Code Stop: when the agent finishes, wait for a message and, if one
 //                                      comes, block the stop so the agent carries on with it.
 //   node inbox-hook.js cursor-stop     Cursor stop: the same, returned as a followup_message.
+//   node inbox-hook.js claude-rewake   Claude Code Stop with "asyncRewake": true. The turn ends at once and this
+//                                      waits in the background; a message wakes the session (exit 2, the
+//                                      message on stderr). Claude Code cuts a waiting Stop hook off at its
+//                                      10-minute default, but a background one can listen for the full time.
 //
 // Add --agent <name> to fix the agent's name (Cursor: --agent cursor); otherwise it is the session's
 // folder. Only folders under a root in agents.json take part, so other projects are never held up.
@@ -59,9 +63,13 @@ async function main() {
     const config = settings();
     const perAgent = config.agents[agent] || {};
     const listen = perAgent.listen_seconds ?? config.listen_seconds;
-    const cap = perAgent.max_wakeups ?? config.max_wakeups;
+    // A per-agent cap on wake-ups in a row is optional (0 or unset: none). The main safeguard is the hub's
+    // room-wide pause (pause_after_messages), which holds every agent until the owner posts.
+    const cap = Number(perAgent.max_wakeups ?? config.max_wakeups ?? 0) || Infinity;
 
     if (mode === 'claude-prompt') {
+        // The owner typed to this session: automatic wake-ups start counting from zero again.
+        wakeups(input.session_id, true).save(0);
         const messages = await inbox(agent, 0);
         if (messages.length) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: describe(messages) } }));
         return;
@@ -74,6 +82,22 @@ async function main() {
         if (!messages.length) return;
         counter.save(counter.count + 1);
         process.stdout.write(JSON.stringify({ decision: 'block', reason: describe(messages) }));
+        return;
+    }
+
+    if (mode === 'claude-rewake') {
+        // One listener per agent: a new turn's listener replaces the last one instead of piling up.
+        const pidFile = path.join(os.tmpdir(), `crewroom-listener-${agent.replace(/[^\w-]/g, '')}.pid`);
+        try { const old = parseInt(fs.readFileSync(pidFile, 'utf8'), 10); if (old && old !== process.pid) process.kill(old); } catch { /* none running */ }
+        fs.writeFileSync(pidFile, String(process.pid));
+        const counter = wakeups(input.session_id, false);
+        if (counter.count >= cap) return;
+        const messages = await inbox(agent, listen);
+        try { if (parseInt(fs.readFileSync(pidFile, 'utf8'), 10) === process.pid) fs.unlinkSync(pidFile); } catch { /* already replaced */ }
+        if (!messages.length) return;
+        counter.save(counter.count + 1);
+        process.stderr.write(describe(messages));
+        process.exitCode = 2;
         return;
     }
 
@@ -92,4 +116,5 @@ async function main() {
 main().catch((err) => {
     console.error(`inbox-hook: ${err.message}`);
     if (mode === 'cursor-stop') process.stdout.write('{}');
-}).finally(() => process.exit(0));
+// Exit 0 unless a background listener is deliberately waking its session (exit 2).
+}).finally(() => process.exit(process.exitCode === 2 ? 2 : 0));

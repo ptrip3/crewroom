@@ -15,6 +15,9 @@ Everything runs on your own machine: one small Node.js hub on `127.0.0.1:3000`, 
   names nobody goes to everyone.
 - **Automatic wake-ups.** When an agent finishes a turn, its app's hook keeps it listening (up to an hour by
   default) and hands it the next message meant for it. Antigravity, which has no such hook, gets a small extension instead.
+- **A pause when you're not around.** Once 30 messages have gone by without you, no agent is woken until you post
+  again, so agents can't keep talking among themselves and spending tokens. Set `pause_after_messages` in
+  `agents.json` to change the number, or to `0` to turn it off.
 - **A live roster.** The page shows each agent as listening, working, or offline, and how many messages are waiting
   for an agent that isn't running.
 - **Pushes approved by a button.** An agent can only *ask* to push (`ask_to_push`). The question appears on the page
@@ -65,7 +68,7 @@ npm install
 copy agents.example.json agents.json
 ```
 
-Edit `agents.json`: your name (`owner`), your project folder, one entry per agent (`role`, optional `aliases`,
+Edit `agents.json` (or keep it and `data/` in another folder by setting `CREWROOM_HOME`): your name (`owner`), your project folder, one entry per agent (`role`, optional `aliases`,
 `branch`), and `roots`, which lists the folders whose Claude Code sessions should take part. Add `notes_dir` and
 `release` only if you want those features.
 
@@ -86,11 +89,15 @@ Add the hooks to `~/.claude/settings.json`:
 ```json
 "hooks": {
   "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "node C:/path/to/crewroom/src/inbox-hook.js claude-prompt", "timeout": 15 }] }],
-  "Stop":             [{ "hooks": [{ "type": "command", "command": "node C:/path/to/crewroom/src/inbox-hook.js claude-stop", "timeout": 3660 }] }]
+  "Stop":             [{ "hooks": [{ "type": "command", "command": "node C:/path/to/crewroom/src/inbox-hook.js claude-rewake", "asyncRewake": true, "timeout": 3660 }] }]
 }
 ```
 
 A Claude Code session's chat name is its folder name, and only folders listed in `roots` take part.
+
+The Stop hook runs in the background (`asyncRewake`): the turn ends straight away and the session stays free
+for you to type in, while the listener waits and wakes the session when a message for it arrives. A Stop hook
+that waits in the foreground is cut off after Claude Code's default of 10 minutes, whatever its timeout says.
 
 ### Cursor
 
@@ -158,6 +165,7 @@ Then open each agent in its folder and send it one message, such as "Start". It 
 - The notes folder is readable by every connected agent, and so by the companies whose models run them.
   Keep private material out of it.
 - Each wake-up is a real model turn and uses your plan or API quota. Address agents only when they need to act.
+  The pause after `pause_after_messages` messages without you is the backstop.
 
 ## License
 

@@ -7,7 +7,7 @@ const { spawn } = require('child_process');
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const { v4: uuidv4 } = require('uuid');
-const { settings, ROOT, DATA } = require('./hub-client');
+const { settings, APP, DATA } = require('./hub-client');
 
 const PORT = Number(process.env.CREWROOM_PORT) || 3000;
 const db = new sqlite3.Database(path.join(DATA, 'crewroom.db'));
@@ -30,7 +30,7 @@ const run = (sql, args) => new Promise((resolve, reject) => db.run(sql, args, fu
 
 const app = express();
 app.use(express.json());
-app.use(express.static(path.join(ROOT, 'public')));
+app.use(express.static(path.join(APP, 'public')));
 
 // Live feed: every bridge and page holds one of these open.
 const listeners = new Set();
@@ -41,38 +41,7 @@ function broadcast(message) {
     for (const res of listeners) res.write(frame);
     for (const waiter of [...waiters]) waiter(message);
     notifyDesktop(message);
-    wakeAntigravity(message);
-}
-
-// Antigravity has no hooks, so the Antigravity Automation extension's local API wakes it instead:
-// a POST /send_command types the text into the agent as if the user had. Fire and forget: a closed
-// IDE or a slow extension must never hold up the hub. Messages Antigravity sent itself are skipped,
-// or every reply would wake it again.
-// One nudge covers every message that arrives before Antigravity reads the room, so a burst of
-// messages queues one command, not one each; each command also spends the extension's free quota.
-// A message inside the quiet window is not dropped: one wake is scheduled for the end of the
-// window, so the last message of a burst always gets a nudge.
-let lastWake = 0;
-let pendingWake = null;
-function wakeAntigravity(message) {
-    const config = { enabled: true, url: 'http://localhost:5000/send_command', agent_id: 'antigravity', text: 'Check the chat for new tasks', quiet_seconds: 30, ...(settings().antigravity || {}) };
-    if (!config.enabled || message.agent_id === config.agent_id) return;
-    const wait = lastWake + config.quiet_seconds * 1000 - Date.now();
-    if (wait > 0) {
-        if (!pendingWake) pendingWake = setTimeout(() => { pendingWake = null; sendWake(config); }, wait);
-        return;
-    }
-    sendWake(config);
-}
-
-function sendWake(config) {
-    lastWake = Date.now();
-    fetch(config.url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: config.text }),
-        signal: AbortSignal.timeout(3000),
-    }).catch(() => {});
+    checkPause(message).catch((err) => hubLog(`pause check failed: ${err.message}`));
 }
 
 // A Windows toast for the person overseeing the agents. The text goes through environment
@@ -114,6 +83,32 @@ const WORK_LIMIT = 2 * 60 * 60 * 1000;
 const isWorking = (agent) => working.has(agent) && Date.now() - working.get(agent) < WORK_LIMIT;
 // What the page needs to know about this install.
 app.get('/config', (req, res) => res.json({ owner: owner(), default_room: defaultRoom(), push: Boolean(release()) }));
+
+// The safeguard against agents talking among themselves without end: once "pause_after_messages"
+// messages (default 30; 0 turns it off) have been posted since the owner last wrote, no agent is woken
+// until the owner posts again. It counts across all rooms and ignores the hub's own notices.
+const pauseLimit = () => { const n = Number(settings().pause_after_messages ?? 30); return Number.isFinite(n) && n > 0 ? n : 0; };
+async function pauseState() {
+    const limit = pauseLimit();
+    if (!limit) return { paused: false, count: 0, limit: 0 };
+    const marks = people().map(() => '?').join(', ');
+    const row = await get(`SELECT COUNT(*) AS n FROM messages WHERE agent_id NOT IN (${marks}, 'hub')
+        AND id > (SELECT COALESCE(MAX(id), 0) FROM messages WHERE agent_id IN (${marks}))`, [...people(), ...people()]);
+    return { paused: row.n >= limit, count: row.n, limit };
+}
+// Tell the owner once, the moment the limit is reached.
+let pauseNoticed = false;
+async function checkPause(message) {
+    if (people().includes(message.agent_id)) { pauseNoticed = false; return; }
+    if (message.agent_id === 'hub' || pauseNoticed) return;
+    const state = await pauseState();
+    if (!state.paused) return;
+    pauseNoticed = true;
+    await postAs('hub', message.room_id, `${owner()}: ${state.count} messages have gone by without you, so all agents are paused and won't be woken until you post. Reply to resume.`);
+}
+app.get('/pause', async (req, res) => {
+    try { res.json(await pauseState()); } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 app.get('/health', (req, res) => res.json({ ok: true, listeners: listeners.size, waiting: waiters.size }));
 app.get('/listening', (req, res) => res.json({ agents: [...listening.keys()].sort() }));
@@ -357,7 +352,8 @@ app.get('/inbox/:agentId', async (req, res) => {
             const unread = await all('SELECT * FROM messages WHERE id > ? AND agent_id <> ?', [place.last_id, agent]);
             let wanted = false;
             for (const message of unread) if (await isFor(agent, message)) { wanted = true; break; }
-            if (wanted) {
+            // The pause holds every automatic wake-up until the owner posts; the messages stay unread.
+            if (wanted && !(await pauseState()).paused) {
                 const messages = await takeUnread(agent);
                 if (messages.length) working.set(agent, Date.now());
                 return res.json({ agent, messages });

@@ -66,6 +66,8 @@
         .chip { display: inline-block; margin: 0 6px 4px 0; padding: 2px 8px; border-radius: 10px; border: 1px solid #333; color: #888; font-size: 0.85em; }
         .chip.on { color: #7BD88F; border-color: #2E5E3A; }
         .chip.stuck { color: #F0B35A; border-color: #6B4E1F; }
+        .pause-banner { margin: 6px 0; padding: 8px 10px; border-radius: 4px; border: 1px solid #6B4E1F; background: #3A2F1A; color: #F0B35A; font-size: 0.9em; }
+        .pause-banner.soon { border-color: #333; background: none; color: #888; }
         .chip.busy { color: #8AB4F8; border-color: #2F4A75; }
         .working { color: #8AB4F8; font-size: 0.85em; min-height: 1.2em; margin-bottom: 4px; font-style: italic; }
         textarea { background-color: #1E1E1E; color: #E0E0E0; border: 1px solid #333; padding: 8px; border-radius: 4px; font: inherit; resize: vertical; min-height: 38px; max-height: 40vh; }
@@ -97,6 +99,7 @@
         </div>
         <div class="muted" id="listening" style="margin-top: 8px;"></div>
         <div id="messages"></div>
+        <div class="pause-banner" id="pause-banner" hidden></div>
         <div class="working" id="working"></div>
         <div class="row">
             <textarea id="message-input" class="grow" rows="2" placeholder="Give an instruction... (a list is fine: one item per line)"></textarea>
@@ -251,6 +254,14 @@
                         box.append(chip);
                     }
                 }
+                // The room-wide pause: agents wait for the owner after pause_after_messages messages without them.
+                const pause = await api('/pause');
+                const banner = $('pause-banner');
+                banner.hidden = !pause.limit || pause.count < Math.ceil(pause.limit * 0.8);
+                banner.className = 'pause-banner' + (pause.paused ? '' : ' soon');
+                banner.textContent = pause.paused
+                    ? `⏸ Agents are paused: ${pause.count} messages without you. Post anything to let them carry on.`
+                    : `${pause.count} of ${pause.limit} messages since you last posted; agents pause at ${pause.limit}.`;
                 // Like a "typing..." line: who is busy right now, just above the message box.
                 const busy = agents.filter((a) => a.working);
                 $('working').textContent = busy.length ? `✎ ${busy.map((a) => `${a.agent} (${since(a.working_since)})`).join(', ')} ${busy.length === 1 ? 'is' : 'are'} working…` : '';

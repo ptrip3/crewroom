@@ -5,10 +5,10 @@
 const { ListToolsRequestSchema, CallToolRequestSchema } = require('@modelcontextprotocol/sdk/types.js');
 const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
 const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js');
-const { ROOT, DATA, HUB, ensureHub, hubJson: hub, agentFor, settings } = require('./hub-client');
+const { APP, DATA, HUB, ensureHub, hubJson: hub, agentFor, settings } = require('./hub-client');
 const fs = require('fs');
 const path = require('path');
-const SKILLS = path.join(ROOT, 'skills');
+const SKILLS = path.join(APP, 'skills');
 // Shared notes: any folder of Markdown files (an Obsidian vault works), set as "notes_dir" in agents.json.
 const VAULT = (process.env.CREWROOM_NOTES || settings().notes_dir) ? path.resolve(process.env.CREWROOM_NOTES || settings().notes_dir) : null;
 

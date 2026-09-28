@@ -6,8 +6,10 @@ const { spawn } = require('child_process');
 
 const PORT = Number(process.env.CREWROOM_PORT) || 3000;
 const HUB = `http://127.0.0.1:${PORT}`;
-// The project root (agents.json lives there) and data/ (the chat database and logs, never committed).
-const ROOT = path.join(__dirname, '..');
+// APP is the install (public/, skills/). ROOT holds agents.json and data/: the install itself, or
+// CREWROOM_HOME points at another folder holding agents.json and data/ (a second setup, or tests).
+const APP = path.join(__dirname, '..');
+const ROOT = process.env.CREWROOM_HOME ? path.resolve(process.env.CREWROOM_HOME) : path.join(__dirname, '..');
 const DATA = path.join(ROOT, 'data');
 fs.mkdirSync(DATA, { recursive: true });
 
@@ -36,7 +38,7 @@ async function hubJson(pathAndQuery, options = {}) {
 
 // agents.json: which folders take part, and how long a finished agent keeps listening.
 function settings() {
-    const defaults = { roots: [], listen_seconds: 600, max_wakeups: 20, agents: {} };
+    const defaults = { roots: [], listen_seconds: 600, max_wakeups: 0, pause_after_messages: 30, agents: {} };
     try { return { ...defaults, ...JSON.parse(fs.readFileSync(path.join(ROOT, 'agents.json'), 'utf8')) }; } catch { return defaults; }
 }
 
@@ -52,4 +54,4 @@ function takesPart(cwd, explicit) {
     return settings().roots.some((root) => here.startsWith(path.resolve(root).toLowerCase()));
 }
 
-module.exports = { ROOT, DATA, HUB, ensureHub, hubJson, settings, agentFor, takesPart };
+module.exports = { APP, ROOT, DATA, HUB, ensureHub, hubJson, settings, agentFor, takesPart };
