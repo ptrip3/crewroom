@@ -1,0 +1,35 @@
+{
+  "name": "crewroom",
+  "version": "1.0.0",
+  "description": "A local chatroom that lets several AI coding agents (Claude Code, Cursor, Codex, Antigravity) coordinate, wake each other and share notes and skills.",
+  "main": "src/hub.js",
+  "scripts": {
+    "start": "node src/hub.js",
+    "briefs": "node scripts/write-agent-briefs.js",
+    "build-extension": "powershell -NoProfile -File extensions/antigravity/build-vsix.ps1"
+  },
+  "keywords": [
+    "mcp",
+    "ai-agents",
+    "claude-code",
+    "cursor",
+    "codex",
+    "multi-agent",
+    "chatroom"
+  ],
+  "author": "ptrip3",
+  "license": "MIT",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "express": "^5.2.1",
+    "sqlite3": "^6.0.1",
+    "uuid": "^14.0.2"
+  },
+  "allowScripts": {
+    "sqlite3@6.0.1": true
+  }
+}

@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Crewroom</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 700px;
+            margin: auto;
+            padding: 20px 16px;
+            background-color: #121212;
+            color: #E0E0E0;
+        }
+        input, button {
+            background-color: #1E1E1E;
+            color: #E0E0E0;
+            border: 1px solid #333;
+            padding: 8px;
+            border-radius: 4px;
+            font: inherit;
+        }
+        button {
+            cursor: pointer;
+            background-color: #2D2D2D;
+            transition: background-color 0.2s;
+        }
+        button:hover { background-color: #3D3D3D; }
+        .row { display: flex; gap: 6px; align-items: center; }
+        .grow { flex-grow: 1; min-width: 0; }
+        .muted { color: #888; font-size: 0.85em; }
+        .room {
+            display: flex; gap: 8px; align-items: center;
+            padding: 10px; margin-bottom: 6px;
+            background: #1A1A1A; border: 1px solid #333; border-radius: 4px;
+            cursor: pointer;
+        }
+        .room:hover { border-color: #4A90E2; }
+        .room .name { font-weight: bold; overflow-wrap: anywhere; }
+        #messages {
+            height: 60vh;
+            border: 1px solid #333;
+            padding: 10px;
+            overflow-y: auto;
+            margin: 10px 0;
+            background: #1A1A1A;
+            border-radius: 4px;
+        }
+        .msg-container {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 4px;
+            background-color: #252525;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+        .msg-human { border-left: 4px solid #4A90E2; }
+        .msg-agent { border-left: 4px solid #BB86FC; }
+        .msg-for-me { border-left: 4px solid #F0B35A; background-color: #3A2F1A; box-shadow: 0 0 0 1px #6B4E1F inset; }
+        .push-actions { margin-top: 8px; display: flex; gap: 6px; align-items: center; }
+        .push-actions .go { background: #2E5E3A; border-color: #3F8A52; color: #E8FFE8; font-weight: bold; }
+        .push-actions .go:hover { background: #3F8A52; }
+        .msg-for-me::before { content: 'For you'; float: right; margin-left: 8px; font-size: 0.75em; font-weight: bold; color: #F0B35A; }
+        .time { color: #777; font-size: 0.8em; margin-left: 6px; }
+        .chip { display: inline-block; margin: 0 6px 4px 0; padding: 2px 8px; border-radius: 10px; border: 1px solid #333; color: #888; font-size: 0.85em; }
+        .chip.on { color: #7BD88F; border-color: #2E5E3A; }
+        .chip.stuck { color: #F0B35A; border-color: #6B4E1F; }
+        .chip.busy { color: #8AB4F8; border-color: #2F4A75; }
+        .working { color: #8AB4F8; font-size: 0.85em; min-height: 1.2em; margin-bottom: 4px; font-style: italic; }
+        textarea { background-color: #1E1E1E; color: #E0E0E0; border: 1px solid #333; padding: 8px; border-radius: 4px; font: inherit; resize: vertical; min-height: 38px; max-height: 40vh; }
+        .hint { color: #666; font-size: 0.8em; margin-top: 4px; }
+        .del { float: right; padding: 0 6px; background: none; border: none; color: #777; }
+        .del:hover { color: #E57373; background: none; }
+        #delete-room:hover { border-color: #E57373; }
+        h2 { margin-bottom: 12px; }
+    </style>
+</head>
+<body>
+    <h2>Crewroom</h2>
+
+    <div id="list-screen">
+        <div class="row" style="margin-bottom: 12px;">
+            <input id="new-room" class="grow" placeholder="New room name, e.g. My Project">
+            <button id="create">Create room</button>
+        </div>
+        <div class="muted" id="listening-list" style="margin-bottom: 10px;"></div>
+        <div id="rooms"></div>
+    </div>
+
+    <div id="chat-screen" style="display: none;">
+        <div class="row">
+            <button id="back">&larr; Rooms</button>
+            <div class="grow"><b id="room-name"></b> <span class="muted" id="room-id"></span></div>
+            <button id="rename">Rename</button>
+            <button id="delete-room">Delete room</button>
+        </div>
+        <div class="muted" id="listening" style="margin-top: 8px;"></div>
+        <div id="messages"></div>
+        <div class="working" id="working"></div>
+        <div class="row">
+            <textarea id="message-input" class="grow" rows="2" placeholder="Give an instruction... (a list is fine: one item per line)"></textarea>
+            <button id="send">Send</button>
+        </div>
+        <div class="hint">Enter sends · Shift+Enter or Alt+Enter adds a new line</div>
+    </div>
+
+    <script>
+        // Your name in the chatroom. The hub skips desktop toasts for your own messages.
+        // Filled in from the hub's /config (agents.json "owner") before anything is shown.
+        let ME = 'owner';
+        let currentRoom = '';
+        let lastMsgId = 0;
+        let poller = null;
+        const $ = (id) => document.getElementById(id);
+
+        async function api(path, method = 'GET', body) {
+            const res = await fetch(path, body ? { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { method });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `error ${res.status}`);
+            return data;
+        }
+
+        // Text, not HTML, everywhere below: a message or room name must never run as markup in this page.
+        async function showRooms() {
+            clearInterval(poller);
+            currentRoom = '';
+            history.replaceState(null, '', location.pathname);
+            $('chat-screen').style.display = 'none';
+            $('list-screen').style.display = 'block';
+            const { rooms } = await api('/rooms');
+            const list = $('rooms');
+            list.replaceChildren();
+            if (rooms.length === 0) list.append(Object.assign(document.createElement('p'), { className: 'muted', textContent: 'No rooms yet. Create one per project.' }));
+            for (const room of rooms) {
+                const row = document.createElement('div');
+                row.className = 'room';
+                const text = document.createElement('div');
+                text.className = 'grow';
+                const name = Object.assign(document.createElement('div'), { className: 'name', textContent: room.name });
+                const info = Object.assign(document.createElement('div'), { className: 'muted', textContent: `id: ${room.room_id} · ${room.messages} message${room.messages === 1 ? '' : 's'}` });
+                text.append(name, info);
+                const rename = Object.assign(document.createElement('button'), { textContent: 'Rename' });
+                rename.onclick = (e) => { e.stopPropagation(); renameRoom(room.room_id, room.name).then(showRooms); };
+                row.append(text, rename);
+                row.onclick = () => openRoom(room.room_id, room.name);
+                list.append(row);
+            }
+        }
+
+        async function renameRoom(id, current) {
+            const name = prompt('New name for this room (agents keep using the id):', current);
+            if (!name || !name.trim() || name.trim() === current) return current;
+            try { await api(`/rooms/${encodeURIComponent(id)}`, 'PATCH', { name: name.trim() }); return name.trim(); }
+            catch (err) { alert(err.message); return current; }
+        }
+
+        async function createRoom() {
+            const name = $('new-room').value.trim();
+            if (!name) return;
+            try {
+                const room = await api('/rooms', 'POST', { name });
+                $('new-room').value = '';
+                openRoom(room.room_id, room.name);
+            } catch (err) { alert(err.message); }
+        }
+
+        function openRoom(id, name) {
+            currentRoom = id;
+            lastMsgId = 0;
+            location.hash = encodeURIComponent(id);
+            $('room-name').textContent = name;
+            $('room-id').textContent = `id: ${id}`;
+            $('messages').replaceChildren();
+            $('list-screen').style.display = 'none';
+            $('chat-screen').style.display = 'block';
+            clearInterval(poller);
+            poller = setInterval(fetchMessages, 2000);
+            fetchMessages();
+            $('message-input').focus();
+        }
+
+        // Addressed to me the way the hub decides it for agents: my name in the opening "name:" part,
+        // or @name anywhere.
+        function addressedToMe(text) {
+            const opening = (text.match(/^\s*([^\n:]{1,80}?)\s*(?::|\s-\s|\n)/) || [, ''])[1];
+            return new RegExp(`(^|[^a-z0-9-])${ME}(?![a-z0-9-])`, 'i').test(opening) || new RegExp(`@${ME}(?![a-z0-9-])`, 'i').test(text);
+        }
+
+        async function fetchMessages() {
+            const room = currentRoom;
+            try {
+                const data = await api(`/chat/${encodeURIComponent(room)}?last_msg_id=${lastMsgId}`);
+                if (room !== currentRoom || !data.new_messages.length) return;
+                const box = $('messages');
+                const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+                for (const msg of data.new_messages) {
+                    if (msg.id <= lastMsgId) continue;
+                    const mine = msg.agent_id === ME || msg.agent_id === 'Human';
+                    const row = document.createElement('div');
+                    row.dataset.id = msg.id;
+                    row.className = `msg-container ${mine ? 'msg-human' : 'msg-agent'}${!mine && addressedToMe(msg.content) ? ' msg-for-me' : ''}`;
+                    const who = Object.assign(document.createElement('b'), { textContent: msg.agent_id });
+                    const when = Object.assign(document.createElement('span'), { className: 'time', textContent: new Date(msg.timestamp + 'Z').toLocaleString() });
+                    const del = Object.assign(document.createElement('button'), { className: 'del', textContent: '×', title: 'Delete this message' });
+                    del.onclick = async () => {
+                        if (!confirm('Delete this message?')) return;
+                        try { await api(`/chat/${encodeURIComponent(room)}/${msg.id}`, 'DELETE'); row.remove(); } catch (err) { alert(err.message); }
+                    };
+                    row.append(del, who, when, document.createElement('br'), document.createTextNode(msg.content));
+                    box.append(row);
+                    lastMsgId = msg.id;
+                }
+                if (atBottom) box.scrollTop = box.scrollHeight;
+            } catch (err) {
+                console.error('Polling error:', err);
+            }
+        }
+
+        async function sendMessage() {
+            const input = $('message-input');
+            const content = input.value.trim();
+            if (!content || !currentRoom) return;
+            input.value = '';
+            try {
+                await api(`/chat/${encodeURIComponent(currentRoom)}`, 'POST', { agent_id: ME, content });
+                await fetchMessages();
+                $('messages').scrollTop = $('messages').scrollHeight;
+            } catch (err) {
+                input.value = content;
+                alert(`Not sent: ${err.message}`);
+            }
+        }
+
+        // The roster: who is listening, and who has messages waiting that nobody has picked up (free to
+        // check; wakes nobody). An agent that is not listening has no session running.
+        async function showListening() {
+            try {
+                const { agents } = await api('/agents');
+                const since = (t) => { const m = Math.floor((Date.now() - t) / 60000); return m < 1 ? 'just now' : `${m} min`; };
+                for (const box of [$('listening'), $('listening-list')]) {
+                    box.replaceChildren();
+                    for (const a of agents) {
+                        const chip = document.createElement('span');
+                        chip.className = 'chip' + (a.listening ? ' on' : a.working ? ' busy' : a.waiting ? ' stuck' : '');
+                        const mark = a.listening ? '●' : a.working ? '✎' : '○';
+                        chip.textContent = `${mark} ${a.agent}${a.working ? ` · working ${since(a.working_since)}` : ''}${a.waiting ? ` · ${a.waiting} waiting` : ''}`;
+                        chip.title = a.listening ? 'Listening: will be woken by a message that names it.'
+                            : a.working ? 'Working on something it was given; it will listen again when it finishes.'
+                            : a.waiting ? 'No session running, and messages for it are piling up. Start its session.' : 'No session running.';
+                        box.append(chip);
+                    }
+                }
+                // Like a "typing..." line: who is busy right now, just above the message box.
+                const busy = agents.filter((a) => a.working);
+                $('working').textContent = busy.length ? `✎ ${busy.map((a) => `${a.agent} (${since(a.working_since)})`).join(', ')} ${busy.length === 1 ? 'is' : 'are'} working…` : '';
+            } catch { /* the hub is restarting; try again next time */ }
+        }
+        showListening();
+        setInterval(showListening, 5000);
+
+        // A push question from an agent gets real buttons: the click is the approval, not the text.
+        async function refreshPush() {
+            let state;
+            try { state = await api('/push'); } catch { return; }
+            const pending = state.pending;
+            const key = pending ? `${pending.id}:${state.pushing}` : '';
+            const current = document.querySelector('.push-actions');
+            // Leave the buttons alone while nothing has changed, so a click never lands on a button being replaced.
+            if (current && current.dataset.key === key && current.isConnected) return;
+            document.querySelectorAll('.push-actions').forEach((el) => el.remove());
+            const row = pending && document.querySelector(`.msg-container[data-id="${pending.id}"]`);
+            if (!row) return;
+            const box = document.createElement('div');
+            box.className = 'push-actions';
+            box.dataset.key = key;
+            if (state.pushing) { box.textContent = 'Pushing\u2026'; row.append(box); return; }
+            const go = Object.assign(document.createElement('button'), { className: 'go', textContent: 'Approve push' });
+            const no = Object.assign(document.createElement('button'), { textContent: 'Decline' });
+            go.onclick = async () => {
+                if (!confirm('Run the push now?')) return;
+                try { await api('/push/approve', 'POST', { id: pending.id }); box.textContent = 'Pushing\u2026 the result will be posted here.'; }
+                catch (err) { alert(err.message); refreshPush(); }
+            };
+            no.onclick = async () => { try { await api('/push/decline', 'POST', {}); } catch (err) { alert(err.message); } refreshPush(); };
+            box.append(go, no);
+            row.append(box);
+        }
+        setInterval(refreshPush, 3000);
+
+        $('send').onclick = sendMessage;        $('create').onclick = createRoom;
+        $('back').onclick = showRooms;
+        $('delete-room').onclick = async () => {
+            if (!confirm(`Delete the room "${$('room-name').textContent}" and its whole chat log? This cannot be undone.`)) return;
+            try { await api(`/rooms/${encodeURIComponent(currentRoom)}`, 'DELETE'); showRooms(); } catch (err) { alert(err.message); }
+        };
+        $('rename').onclick = async () => { $('room-name').textContent = await renameRoom(currentRoom, $('room-name').textContent); };
+        $('message-input').addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' || e.isComposing) return;
+            e.preventDefault();
+            if (e.shiftKey || e.altKey) {
+                // Browsers do not add a line for Alt+Enter on their own, so insert it at the cursor.
+                const box = e.target, at = box.selectionStart;
+                box.setRangeText('\n', at, box.selectionEnd, 'end');
+                box.dispatchEvent(new Event('input'));
+            } else {
+                sendMessage();
+            }
+        });
+        // The box grows with its text, up to the limit in the stylesheet.
+        $('message-input').addEventListener('input', (e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; });
+        $('new-room').addEventListener('keydown', (e) => { if (e.key === 'Enter') createRoom(); });
+
+        // A link like http://localhost:3000/#my-project opens that room directly.
+        (async () => {
+            try { ME = (await api('/config')).owner || ME; } catch { /* keep the default */ }
+            const wanted = decodeURIComponent(location.hash.slice(1));
+            if (!wanted) return showRooms();
+            const { rooms } = await api('/rooms');
+            const room = rooms.find((r) => r.room_id === wanted);
+            openRoom(wanted, room ? room.name : wanted);
+        })();
+    </script>
+</body>
+</html>

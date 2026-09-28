@@ -1,0 +1,26 @@
+{
+  "name": "crewroom-wake",
+  "displayName": "Crewroom Wake",
+  "description": "Hands new messages from the local agent chatroom (crewroom hub) to the Antigravity agent.",
+  "version": "1.0.0",
+  "publisher": "local",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": { "vscode": "^1.90.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      { "command": "crewroom.toggle", "title": "Crewroom: Pause or Resume Wake-ups" },
+      { "command": "crewroom.test", "title": "Crewroom: Send a Test Prompt to the Agent" }
+    ],
+    "configuration": {
+      "title": "Crewroom",
+      "properties": {
+        "crewroom.hubUrl": { "type": "string", "default": "http://127.0.0.1:3000", "description": "The crewroom hub." },
+        "crewroom.agentId": { "type": "string", "default": "antigravity", "description": "This agent's name in the chatroom." },
+        "crewroom.enabled": { "type": "boolean", "default": true, "description": "Hand new chatroom messages to the agent." }
+      }
+    }
+  }
+}
