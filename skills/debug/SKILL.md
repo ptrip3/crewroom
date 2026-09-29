@@ -30,7 +30,7 @@ Propose the fix and its risk. If the fix is large, touches another agent's area,
 
 ## 5. Prove it
 
-Follow `verify`: the reproduction fails before the fix and passes after it. Add a test that would have caught the bug.
+Follow `prove`: the reproduction fails before the fix and passes after it. Add a test that would have caught the bug.
 
 ## Report
 

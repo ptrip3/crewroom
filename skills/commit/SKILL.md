@@ -11,7 +11,7 @@ One commit, containing exactly the change you mean, that passes the checks. The 
 
 1. **Look first.** `git status --short --branch`, `git diff --stat`, then `git diff`. Know every file that changed and why.
 2. **Decide what belongs.** Only the files for this task. Leave out someone else's edits, local config, build output, logs, caches, screenshots and generated files unless the task is about them.
-3. **Check it.** Run the project's build and tests (see `verify`). If they fail, stop and report; don't commit a red build unless you were explicitly told to.
+3. **Check it.** Run the project's build and tests (see `prove`). If they fail, stop and report; don't commit a red build unless you were explicitly told to.
 4. **Stage by name.** `git add path/one path/two`. Never `git add .` or `git add -A`.
 5. **Check again.** `git diff --cached --stat` and `git diff --cached`. The staged change should be exactly what you meant, nothing more.
 6. **Scan what you're about to commit** for secrets, personal data, real organisation names, and anything the rules file forbids (for example names of AI tools or assistants in messages, comments or code).

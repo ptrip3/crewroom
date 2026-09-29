@@ -11,7 +11,7 @@ The reader should be able to act on your message without opening your session.
 
 - **To:** whoever asked, by name (`orch: ...`).
 - **What:** one line on what changed, plus the commit hashes.
-- **Proof:** the command you ran and its result (see `verify`).
+- **Proof:** the command you ran and its result (see `prove`).
 - **Left out:** anything you didn't do or check, and why.
 - **Next:** what should happen now, for example "ready for review" or "needs the owner's decision on X".
 

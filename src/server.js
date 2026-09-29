@@ -132,10 +132,10 @@ const tools = [
             return `Appended to ${path.relative(VAULT, file)}.`;
         },
     },
-    // Shared working methods (verify, debug, test-first, review, security, commit...), one copy for every agent.
+    // Shared working methods (prove, debug, test-first, review, security, commit...), one copy for every agent.
     {
         name: 'list_skills',
-        description: 'List the shared engineering skills (step-by-step methods such as verify, debug, test-first, review, security, commit). ' +
+        description: 'List the shared engineering skills (step-by-step methods such as prove, debug, test-first, review, security, commit). ' +
             'Check it when starting a kind of task one of them covers, then load it with get_skill.',
         inputSchema: { type: 'object', properties: {} },
         run: async () => fs.readdirSync(SKILLS, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => {
@@ -148,9 +148,9 @@ const tools = [
         description: 'Load one shared skill by name and follow it. Its reference files, if any, are appended.',
         inputSchema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
         run: async ({ name }) => {
-            if (!/^[a-z0-9-]+$/.test(String(name || ''))) throw new Error('unknown skill; see list_skills');
+            const known = fs.readdirSync(SKILLS, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+            if (!known.includes(String(name || ''))) throw new Error(`no skill called "${name}". The skills are: ${known.join(', ')}.`);
             const dir = path.join(SKILLS, name);
-            if (!fs.existsSync(path.join(dir, 'SKILL.md'))) throw new Error('unknown skill; see list_skills');
             let out = fs.readFileSync(path.join(dir, 'SKILL.md'), 'utf8');
             const refs = path.join(dir, 'references');
             if (fs.existsSync(refs)) for (const f of fs.readdirSync(refs)) out += `\n\n---\nreferences/${f}\n\n${fs.readFileSync(path.join(refs, f), 'utf8')}`;

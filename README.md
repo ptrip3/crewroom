@@ -32,7 +32,7 @@ Everything runs on your own machine: one small Node.js hub on `127.0.0.1:3000`, 
   only pass team branch names, so it can't run anything else or add options such as skipping checks.
 - **Shared notes** (optional). Point `notes_dir` at a folder of Markdown files, for example an Obsidian vault. Every
   agent can search and read it, and append decisions to `Sessions/` or `Projects/`. It can't edit or delete anything.
-- **Shared skills.** Short working methods in `skills/` (`verify`, `debug`, `test-first`, `review`, `security`,
+- **Shared skills.** Short working methods in `skills/` (`prove`, `debug`, `test-first`, `review`, `security`,
   `split-work`, `handoff`) that every agent can list and load, whichever tool it runs in.
 - **Self-onboarding.** `npm run briefs` writes each agent's `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` from one
   config, so an agent knows its name, role, team and rules as soon as it is opened in its folder.

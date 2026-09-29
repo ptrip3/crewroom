@@ -1,9 +1,9 @@
 ---
-name: verify
+name: prove
 description: Check before you claim. Use whenever you are about to say something is done, fixed, passing or working.
 ---
 
-# Verify
+# Prove it
 
 A claim is only as good as the output behind it. Before saying "done", show it.
 

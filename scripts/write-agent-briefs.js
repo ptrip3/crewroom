@@ -31,7 +31,7 @@ function brief(name, agent) {
         '',
         rules ? `1. Read \`${rules}\`. It holds the project's rules and wins over anything here.` : '1. Read the project README for how it is built and tested.',
         `2. With the crewroom tools: \`read_messages\` in the \`${room}\` room${config.notes_dir ? ', and `read_note` "Preferences.md" for how the owner likes to work' : ''}.`,
-        '3. `list_skills`, then `get_skill` for the ones your task needs. Always `verify` before saying something works.',
+        '3. `list_skills`, then `get_skill` for the ones your task needs. Always `prove` before saying something works.',
         '4. Act on messages addressed to you. Otherwise stay quiet: a message that names an agent costs it a turn.',
         '',
         '## The team',

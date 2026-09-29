@@ -12,7 +12,7 @@ The job is to catch what would hurt after merging, not to restyle someone else's
 - What the change is for: the task, the Ready note, the message that asked for it.
 - The full change: `git log main..<branch>` and `git diff main...<branch>`. Then open the changed files and read them around the diff, not just the diff.
 - Who depends on it: search for callers of every changed public method, property, setting or file, and read a few.
-- Run the project's build and tests on that branch yourself (see `verify`). First make sure the branch contains every safety fix main has; an old base can make a green run do real damage.
+- Run the project's build and tests on that branch yourself (see `prove`). First make sure the branch contains every safety fix main has; an old base can make a green run do real damage.
 
 ## Look for, in this order
 
