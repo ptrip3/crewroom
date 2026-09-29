@@ -103,7 +103,11 @@ const working = new Map();
 const WORK_LIMIT = 2 * 60 * 60 * 1000;
 const isWorking = (agent) => working.has(agent) && Date.now() - working.get(agent) < WORK_LIMIT;
 // What the page needs to know about this install.
-app.get('/config', (req, res) => res.json({ owner: owner(), default_room: defaultRoom(), push: Boolean(release()) }));
+app.get('/config', (req, res) => res.json({
+    owner: owner(), default_room: defaultRoom(), push: Boolean(release()),
+    // The agent that builds releases, for the page's Build button (only when a build command is configured).
+    builder: release()?.build_command ? Object.keys(settings().agents || {}).find((name) => settings().agents[name].can_push) || null : null,
+}));
 
 // The safeguard against agents talking among themselves without end: once "pause_after_messages"
 // messages (default 30; 0 turns it off) have been posted since the owner last wrote, no agent is woken

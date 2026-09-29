@@ -39,7 +39,10 @@
             background: #181818; border-right: 1px solid #2A2A2A;
             display: flex; flex-direction: column; min-height: 0;
         }
-        #sidebar h1 { font-size: 1.1em; margin: 0; padding: 14px 14px 10px; }
+        #sidebar h1 { font-size: 1.1em; margin: 0; }
+        #brand-row { padding: 12px 12px 8px 14px; }
+        #build { padding: 4px 12px; font-size: 0.85em; background: #2E5E3A; border-color: #3F8A52; color: #E8FFE8; }
+        #build:hover { background: #3F8A52; }
         #sidebar-scroll { flex: 1; overflow-y: auto; padding: 0 8px 12px; }
         .section { margin-top: 14px; }
         .section-title { text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.72em; color: #888; padding: 0 6px 6px; display: flex; align-items: center; }
@@ -114,7 +117,7 @@
 </head>
 <body>
     <nav id="sidebar">
-        <h1>Crewroom</h1>
+        <div class="row" id="brand-row"><h1 class="grow">Crewroom</h1><button id="build" hidden title="Ask the release agent to build now with everything QA has passed">Build</button></div>
         <div id="sidebar-scroll">
             <div class="section">
                 <div class="section-title"><span class="grow">Rooms</span><button id="add-room" title="New room">+</button></div>
@@ -470,6 +473,18 @@
         (async () => {
             let config = {};
             try { config = await api('/config'); ME = config.owner || ME; } catch { /* keep the default */ }
+            // The Build button: one message to the release agent, which builds with everything QA has passed.
+            if (config.builder) {
+                $('build').hidden = false;
+                $('build').onclick = async () => {
+                    if (!confirm(`Ask ${config.builder} to build a release now with every branch QA has passed?`)) return;
+                    const room = currentRoom || config.default_room || 'general';
+                    try {
+                        await api(`/chat/${encodeURIComponent(room)}`, 'POST', { agent_id: ME, content: `${config.builder}: build now. Build a release with every branch whose Ready rows have passed QE (build_release), then ask_to_push. Don't ask me first.` });
+                        if (room === currentRoom) fetchMessages();
+                    } catch (err) { alert(`Not sent: ${err.message}`); }
+                };
+            }
             await showRooms();
             showStatus();
             const wanted = decodeURIComponent(location.hash.slice(1)) || config.default_room || '';

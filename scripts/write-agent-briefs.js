@@ -63,7 +63,11 @@ function brief(name, agent) {
             '- Split big requests into independent pieces (different files) so several developers can work at once. Load `get_skill split-work` for how.');
     }
     if (agent.can_push) {
-        if (config.release?.build_command) lines.push('', '## Builds', '', 'Build releases with the `build_release` tool (pass the branches to merge), never by running the build script or git yourself. It runs the project\'s configured build without permission prompts, and only accepts team branches.');
+        if (config.release?.build_command) lines.push('', '## Builds', '', 'Build releases with the `build_release` tool (pass the branches to merge), never by running the build script or git yourself. It runs the project\'s configured build without permission prompts, and only accepts team branches.',
+            '',
+            `- **Don't ask ${owner} whether to build.** As soon as no developer has an open task (\`list_tasks\`) and every Ready row has passed QE, call \`build_release\` with those branches, then \`ask_to_push\`. The push button is ${owner}'s only approval step.`,
+            `- If a build stops (a failing test, a merge conflict), say what stopped it and who is fixing it; don't ask ${owner} what to do unless it's their decision.`,
+            `- "build now" from ${owner} (or the page's Build button) means build straight away with every branch whose Ready rows have passed, even if other tasks are still open.`);
         lines.push('', '## Releases', '', `You never push yourself. When something is ready to go out, call \`ask_to_push\` with what a push would send. ${owner} approves with a button on the chatroom page, and the hub runs the push and posts the result to you.`);
     } else {
         lines.push('- Never push; ask the agent that handles releases.');
