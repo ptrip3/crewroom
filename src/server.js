@@ -132,10 +132,10 @@ const tools = [
             return `Appended to ${path.relative(VAULT, file)}.`;
         },
     },
-    // Shared working methods (verify, debug, test-first, review, security...), one copy for every agent.
+    // Shared working methods (verify, debug, test-first, review, security, commit...), one copy for every agent.
     {
         name: 'list_skills',
-        description: 'List the shared engineering skills (step-by-step methods such as verify, debug, test-first, review, security). ' +
+        description: 'List the shared engineering skills (step-by-step methods such as verify, debug, test-first, review, security, commit). ' +
             'Check it when starting a kind of task one of them covers, then load it with get_skill.',
         inputSchema: { type: 'object', properties: {} },
         run: async () => fs.readdirSync(SKILLS, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => {
