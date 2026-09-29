@@ -88,9 +88,9 @@
         .msg-agent { border-left: 4px solid #BB86FC; }
         .msg-for-me { border-left: 4px solid #F0B35A; background-color: #3A2F1A; box-shadow: 0 0 0 1px #6B4E1F inset; }
         .msg-for-me::before { content: 'For you'; float: right; margin-left: 8px; font-size: 0.75em; font-weight: bold; color: #F0B35A; }
-        .push-actions { margin-top: 8px; display: flex; gap: 6px; align-items: center; }
-        .push-actions .go { background: #2E5E3A; border-color: #3F8A52; color: #E8FFE8; font-weight: bold; }
-        .push-actions .go:hover { background: #3F8A52; }
+        .push-actions, .try-actions { margin-top: 8px; display: flex; gap: 6px; align-items: center; }
+        .push-actions .go, .try-actions .go { background: #2E5E3A; border-color: #3F8A52; color: #E8FFE8; font-weight: bold; }
+        .push-actions .go:hover, .try-actions .go:hover { background: #3F8A52; }
         .time { color: #777; font-size: 0.8em; margin-left: 6px; }
         .del { float: right; padding: 0 6px; background: none; border: none; color: #777; }
         .del:hover { color: #E57373; background: none; }
@@ -439,7 +439,7 @@
             for (const t of tries) {
                 const row = document.querySelector(`.msg-container[data-id="${t.message_id}"]`);
                 if (!row || row.querySelector('.try-actions')) continue;
-                const box = el('div', { className: 'push-actions try-actions' });
+                const box = el('div', { className: 'try-actions' });
                 box.dataset.id = String(t.id);
                 const note = el('span', { className: 'muted' });
                 const launch = el('button', { className: 'go', textContent: 'Launch' });
