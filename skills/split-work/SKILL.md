@@ -29,4 +29,5 @@ Keep every developer busy without two of them editing the same file. A good task
 
 - Finish with one short summary to the owner: a numbered list of each piece and who has it, plus anything held or unassigned.
 - When a `done_task` note comes in, send the next held piece to whoever is now free, and pass finished work on for review.
+- If a developer is swamped while another sits idle, move a task they haven't started with `reassign_task` rather than closing and re-assigning it.
 - Chase silence once, not repeatedly.

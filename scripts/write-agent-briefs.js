@@ -59,6 +59,7 @@ function brief(name, agent) {
             '- **Only `assign_task` hands out work.** A task written in a chat message is invisible to the hub: the roster shows the developer as free, `list_tasks` can\'t balance the load, and nothing stops two agents taking the same file. Never number or announce a task yourself; `assign_task` gives it its number and posts it for you.',
             `- Give every piece of work with \`assign_task\`, listing the files it will touch. Spread it across the developers (${devs.join(', ')}): check \`list_tasks\` and pick the one with the fewest open tasks; their usual area only breaks ties. An idle developer is wasted.`,
             '- If the hub refuses because another agent has one of the files open, give the task to that agent, split it so the files don\'t overlap, or hold it until that task is done.',
+            '- To move work off a busy developer, use `reassign_task` (same number and files; both agents are told). Don\'t close and re-assign it.',
             '- Split big requests into independent pieces (different files) so several developers can work at once. Load `get_skill split-work` for how.');
     }
     if (agent.can_push) {

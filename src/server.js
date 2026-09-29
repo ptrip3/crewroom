@@ -219,6 +219,23 @@ if ((settings().agents?.[AGENT_ID] || {}).can_push || (settings().agents?.[AGENT
             const r = await hub('/tasks', { method: 'POST', body: JSON.stringify({ agent, summary, files, room: room || DEFAULT_ROOM, assigned_by: AGENT_ID }) });
             return `Assigned as task #${r.id} (message ${r.message_id}).`;
         },
+    }, {
+        name: 'reassign_task',
+        description: 'Move an open task to another agent, keeping its number and files, for example from a busy developer to an idle one. ' +
+            'Both agents are told. Refused if a third agent has one of its files open.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                id: { type: 'number' },
+                agent: { type: 'string', description: 'who takes it over' },
+                note: { type: 'string', description: 'why it moves (optional)' },
+            },
+            required: ['id', 'agent'],
+        },
+        run: async ({ id, agent, note }) => {
+            const r = await hub(`/tasks/${Number(String(id).replace('#', ''))}/reassign`, { method: 'POST', body: JSON.stringify({ agent, note, by: AGENT_ID }) });
+            return `Task #${r.id} moved from ${r.from} to ${r.to} (message ${r.message_id}).`;
+        },
     });
 }
 

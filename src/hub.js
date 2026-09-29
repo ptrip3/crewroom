@@ -334,6 +334,33 @@ app.post('/tasks/:id/done', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Moving an open task to another agent, keeping its number and files. Refused if another agent (not the old
+// or new owner) has one of its files open. Both agents are told in one message.
+app.post('/tasks/:id/reassign', async (req, res) => {
+    const { agent, by, note } = req.body || {};
+    if (!agent) return res.status(400).json({ error: 'agent is required' });
+    try {
+        const task = await get('SELECT * FROM tasks WHERE id = ?', [req.params.id]);
+        if (!task) return res.status(404).json({ error: `no task #${req.params.id}` });
+        if (task.status !== 'open') return res.status(409).json({ error: `task #${task.id} is already ${task.status}` });
+        if (task.agent === agent) return res.status(409).json({ error: `task #${task.id} already belongs to ${agent}` });
+        const files = JSON.parse(task.files);
+        const wanted = new Set(files.map(normFile));
+        const others = await all(`SELECT * FROM tasks WHERE status = 'open' AND id <> ? AND agent <> ?`, [task.id, agent]);
+        const clashes = others.map(taskRow).map((t) => ({ t, shared: t.files.filter((f) => wanted.has(normFile(f))) })).filter((c) => c.shared.length);
+        if (clashes.length) {
+            return res.status(409).json({ error: 'files also in another open task: ' + clashes.map((c) => `#${c.t.id} (${c.t.agent}): ${c.shared.join(', ')}`).join('; ') +
+                `. ${agent} would clash with that work; finish or move it first.` });
+        }
+        await run('UPDATE tasks SET agent = ? WHERE id = ?', [agent, task.id]);
+        const fileList = files.length ? `\nFiles: ${files.join(', ')}` : '';
+        const posted = await postAs(by || 'hub', task.room_id || defaultRoom(),
+            `${agent}, ${task.agent}: task #${task.id} moves from ${task.agent} to ${agent}${note ? ` (${note})` : ''}. ${task.agent}: stop work on it and leave those files. ` +
+            `${agent}: it's yours now: ${task.summary}${fileList}\nWhen it is finished (or blocked), call done_task with #${task.id} and a one-line note.`);
+        res.json({ id: task.id, from: task.agent, to: agent, message_id: posted.id });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Deleting, from the page: one message, or a whole room with its log.
 app.delete('/chat/:roomId/:id', async (req, res) => {
     try { res.json({ deleted: (await run('DELETE FROM messages WHERE room_id = ? AND id = ?', [req.params.roomId, req.params.id])).changes }); }
