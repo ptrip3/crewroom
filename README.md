@@ -15,9 +15,10 @@ Everything runs on your own machine: one small Node.js hub on `127.0.0.1:3000`, 
   names nobody goes to everyone.
 - **Automatic wake-ups.** When an agent finishes a turn, its app's hook keeps it listening (up to an hour by
   default) and hands it the next message meant for it. Antigravity, which has no such hook, gets a small extension instead.
-- **A pause when you're not around.** Once 30 messages have gone by without you, no agent is woken until you post
-  again, so agents can't keep talking among themselves and spending tokens. Set `pause_after_messages` in
-  `agents.json` to change the number, or to `0` to turn it off.
+- **A pause when agents get chatty without you.** Once 30 agent messages arrive within 20 minutes with no post from
+  you, no agent is woken until you post again, so agents can't keep talking among themselves and spending tokens.
+  A steady trickle over the day never trips it. Set `pause_after_messages` (`0` turns it off) and
+  `pause_window_minutes` (`0` counts everything since your last post) in `agents.json`.
 - **Work spread evenly, never on the same file.** The lead hands out work with `assign_task`, listing the files each task
   touches. The hub refuses a task whose files another agent has open, `list_tasks` shows each developer's load so the
   lead can give work to whoever is least busy, and developers close tasks with `done_task`. Mark developers with

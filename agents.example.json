@@ -14,6 +14,7 @@
   ],
   "listen_seconds": 3600,
   "pause_after_messages": 30,
+  "pause_window_minutes": 20,
   "agents": {
     "lead":        { "aliases": ["orch"], "can_push": true, "branch": "main", "role": "Lead: splits work from the owner into tasks, answers agents, and asks the owner to approve pushes." },
     "qa":          { "aliases": ["qe"], "branch": "qa", "role": "Reviews every finished branch (get_skill review, security, prove) before it is merged." },

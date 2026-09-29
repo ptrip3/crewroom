@@ -38,7 +38,7 @@ async function hubJson(pathAndQuery, options = {}) {
 
 // agents.json: which folders take part, and how long a finished agent keeps listening.
 function settings() {
-    const defaults = { roots: [], listen_seconds: 600, max_wakeups: 0, pause_after_messages: 30, agents: {} };
+    const defaults = { roots: [], listen_seconds: 600, max_wakeups: 0, pause_after_messages: 30, pause_window_minutes: 20, agents: {} };
     try { return { ...defaults, ...JSON.parse(fs.readFileSync(path.join(ROOT, 'agents.json'), 'utf8')) }; } catch { return defaults; }
 }
 

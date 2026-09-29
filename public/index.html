@@ -384,14 +384,16 @@
                         el('span', { className: 'who', textContent: `#${t.id} ${t.agent}` }), document.createTextNode(`: ${t.summary}`),
                         el('div', { className: 'files', textContent: t.files.join(', ') })));
                 }
-                // The room-wide pause: agents wait for the owner after pause_after_messages messages without them.
+                // The room-wide pause: agents wait for the owner after pause_after_messages messages without them
+                // within pause_window_minutes. Once paused it stays paused until the owner posts.
                 const pause = await api('/pause');
                 const banner = $('pause-banner');
-                banner.hidden = !pause.limit || pause.count < Math.ceil(pause.limit * 0.8);
+                const span = pause.window ? ` in the last ${pause.window} min` : ' since you last posted';
+                banner.hidden = !pause.limit || (!pause.paused && pause.count < Math.ceil(pause.limit * 0.8));
                 banner.className = 'pause-banner' + (pause.paused ? '' : ' soon');
                 banner.textContent = pause.paused
-                    ? `⏸ Agents are paused: ${pause.count} messages without you. Post anything to let them carry on.`
-                    : `${pause.count} of ${pause.limit} messages since you last posted; agents pause at ${pause.limit}.`;
+                    ? '⏸ Agents are paused: they talked a lot without you. Post anything to let them carry on.'
+                    : `${pause.count} of ${pause.limit} messages${span}; agents pause at ${pause.limit}.`;
                 // Like a "typing..." line: who is busy right now, just above the message box.
                 const busy = agents.filter((a) => a.working);
                 $('working').textContent = busy.length ? `✎ ${busy.map((a) => `${a.agent} (${since(a.working_since)})`).join(', ')} ${busy.length === 1 ? 'is' : 'are'} working…` : '';

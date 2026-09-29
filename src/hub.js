@@ -112,27 +112,33 @@ app.get('/config', (req, res) => res.json({
     builder: release()?.build_command ? Object.keys(settings().agents || {}).find((name) => settings().agents[name].can_push) || null : null,
 }));
 
-// The safeguard against agents talking among themselves without end: once "pause_after_messages"
-// messages (default 30; 0 turns it off) have been posted since the owner last wrote, no agent is woken
-// until the owner posts again. It counts across all rooms and ignores the hub's own notices.
+// The safeguard against agents talking among themselves without end: once "pause_after_messages" agent
+// messages (default 30; 0 turns it off) arrive within "pause_window_minutes" (default 20; 0 means since the
+// owner last wrote, however long ago) with no post from the owner, no agent is woken until the owner posts
+// again. A steady trickle over a working day never trips it; a burst does. Once tripped it stays paused
+// until the owner posts, even after the burst ends: the hub's notice in the log marks it, so a restart
+// keeps it. It counts across all rooms and ignores the hub's own notices.
+const PAUSE_NOTICE = 'all agents are paused';
 const pauseLimit = () => { const n = Number(settings().pause_after_messages ?? 30); return Number.isFinite(n) && n > 0 ? n : 0; };
+const pauseWindow = () => { const n = Number(settings().pause_window_minutes ?? 20); return Number.isFinite(n) && n > 0 ? n : 0; };
 async function pauseState() {
     const limit = pauseLimit();
-    if (!limit) return { paused: false, count: 0, limit: 0 };
+    const window = pauseWindow();
+    if (!limit) return { paused: false, count: 0, limit: 0, window };
     const marks = people().map(() => '?').join(', ');
-    const row = await get(`SELECT COUNT(*) AS n FROM messages WHERE agent_id NOT IN (${marks}, 'hub')
-        AND id > (SELECT COALESCE(MAX(id), 0) FROM messages WHERE agent_id IN (${marks}))`, [...people(), ...people()]);
-    return { paused: row.n >= limit, count: row.n, limit };
+    const sinceOwner = `id > (SELECT COALESCE(MAX(id), 0) FROM messages WHERE agent_id IN (${marks}))`;
+    const recent = window ? ` AND timestamp >= datetime('now', '-${window} minutes')` : '';
+    const row = await get(`SELECT COUNT(*) AS n FROM messages WHERE agent_id NOT IN (${marks}, 'hub') AND ${sinceOwner}${recent}`, [...people(), ...people()]);
+    const latched = await get(`SELECT 1 AS yes FROM messages WHERE agent_id = 'hub' AND content LIKE ? AND ${sinceOwner} LIMIT 1`, [`%${PAUSE_NOTICE}%`, ...people()]);
+    return { paused: Boolean(latched) || row.n >= limit, latched: Boolean(latched), count: row.n, limit, window };
 }
 // Tell the owner once, the moment the limit is reached.
-let pauseNoticed = false;
 async function checkPause(message) {
-    if (people().includes(message.agent_id)) { pauseNoticed = false; return; }
-    if (message.agent_id === 'hub' || pauseNoticed) return;
+    if (people().includes(message.agent_id) || message.agent_id === 'hub') return;
     const state = await pauseState();
-    if (!state.paused) return;
-    pauseNoticed = true;
-    await postAs('hub', message.room_id, `${owner()}: ${state.count} messages have gone by without you, so all agents are paused and won't be woken until you post. Reply to resume.`);
+    if (state.latched || state.count < state.limit || !state.limit) return;
+    const span = state.window ? ` in the last ${state.window} minutes` : '';
+    await postAs('hub', message.room_id, `${owner()}: ${state.count} messages${span} without you, so ${PAUSE_NOTICE} and won't be woken until you post. Reply to resume.`);
 }
 app.get('/pause', async (req, res) => {
     try { res.json(await pauseState()); } catch (err) { res.status(500).json({ error: err.message }); }
