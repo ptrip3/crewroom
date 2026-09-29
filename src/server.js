@@ -199,6 +199,28 @@ tools.push({
         return `Task #${r.id} marked ${r.status}.`;
     },
 });
+// Trying a build before committing, for developers, when agents.json "project" has "try_path".
+if ((settings().agents?.[AGENT_ID] || {}).developer && settings().project?.try_path) {
+    tools.push({
+        name: 'ask_to_try',
+        description: 'Before committing a change the owner will see or use, build it in your folder and ask the owner to try it. ' +
+            'The page shows Launch, Looks good and Needs changes. Commit only after "looks good"; on "needs changes", fix it ' +
+            'uncommitted, rebuild and ask again. A new ask replaces your previous one.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                summary: { type: 'string', description: 'what changed, in a line or two' },
+                check: { type: 'string', description: 'where to look and what to try, step by step' },
+                room: { type: 'string' },
+            },
+            required: ['summary'],
+        },
+        run: async ({ summary, check, room }) => {
+            const r = await hub('/try', { method: 'POST', body: JSON.stringify({ agent: AGENT_ID, summary, check, room: room || DEFAULT_ROOM }) });
+            return `Asked the owner to try it (try #${r.id}, message ${r.message_id}). Don't commit until they answer.`;
+        },
+    });
+}
 if ((settings().agents?.[AGENT_ID] || {}).can_push || (settings().agents?.[AGENT_ID] || {}).can_assign) {
     tools.push({
         name: 'assign_task',

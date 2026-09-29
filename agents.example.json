@@ -6,7 +6,7 @@
     "name": "My Project",
     "dir": "C:/Projects/my-project",
     "rules_file": "RULES.md",
-    "ready_check": "npm test"
+    "ready_check": "npm test", "try_path": "dist\\my-app.exe"
   },
   "roots": [
     "C:/Projects/my-project/lead",

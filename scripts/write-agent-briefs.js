@@ -53,6 +53,14 @@ function brief(name, agent) {
             `You're one of ${devs.length} developers (${devs.join(', ')}). Your area above is where you usually start, not a limit: you'll get work from any part of the project so nobody sits idle.`,
             '- Work arrives as `task #N` with the files it touches. Stay within those files; if you need another one, check `list_tasks` first so you don\'t edit a file another agent has open, and say so in the chat.',
             '- When it\'s finished (or you\'re blocked), call `done_task` with the number and a one-line note. That frees the files and tells whoever assigned it.');
+        if (project.try_path) {
+            lines.push('', '## Try it before you commit', '',
+                `Anything ${owner} will see or use gets tried by ${owner} before it's committed, so a feature lands as one commit instead of several fix-ups.`,
+                `1. Make the change and build it in your folder (\`${project.try_path}\` must be fresh). Don't commit yet.`,
+                `2. Call \`ask_to_try\` with what changed and exactly where to look. ${owner} gets Launch, Looks good and Needs changes on the page.`,
+                '3. "Needs changes": fix it, still uncommitted, rebuild, and `ask_to_try` again. "Looks good": commit, run the ready check, add it to Ready, then `done_task`.',
+                '- Skip this only for changes nobody can see (tests, internal refactors, build scripts); say so in the Ready note.');
+        }
     }
     if (agent.can_push || agent.can_assign) {
         lines.push('', '## Handing out work', '',

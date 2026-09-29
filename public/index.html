@@ -428,6 +428,42 @@
         }
         setInterval(refreshPush, 3000);
 
+        // A build a developer wants tried before committing: Launch opens it, then the owner answers.
+        async function refreshTries() {
+            let tries;
+            try { ({ tries } = await api('/tries')); } catch { return; }
+            const open = new Set(tries.map((t) => String(t.id)));
+            document.querySelectorAll('.try-actions').forEach((node) => { if (!open.has(node.dataset.id)) node.remove(); });
+            for (const t of tries) {
+                const row = document.querySelector(`.msg-container[data-id="${t.message_id}"]`);
+                if (!row || row.querySelector('.try-actions')) continue;
+                const box = el('div', { className: 'push-actions try-actions' });
+                box.dataset.id = String(t.id);
+                const note = el('span', { className: 'muted' });
+                const launch = el('button', { className: 'go', textContent: 'Launch' });
+                const good = el('button', { textContent: 'Looks good' });
+                const changes = el('button', { textContent: 'Needs changes' });
+                launch.onclick = async () => {
+                    note.textContent = 'Starting…';
+                    try { await api(`/tries/${t.id}/launch`, 'POST', {}); note.textContent = `${t.agent}'s build is open.`; }
+                    catch (err) { note.textContent = err.message; }
+                };
+                good.onclick = async () => {
+                    try { await api(`/tries/${t.id}/approve`, 'POST', {}); box.replaceChildren(el('span', { className: 'muted', textContent: 'Approved; the developer will commit it.' })); fetchMessages(); }
+                    catch (err) { alert(err.message); }
+                };
+                changes.onclick = async () => {
+                    const text = prompt(`What should ${t.agent} change?`);
+                    if (!text || !text.trim()) return;
+                    try { await api(`/tries/${t.id}/changes`, 'POST', { note: text.trim() }); box.replaceChildren(el('span', { className: 'muted', textContent: 'Sent back with your note.' })); fetchMessages(); }
+                    catch (err) { alert(err.message); }
+                };
+                box.append(launch, good, changes, note);
+                row.append(box);
+            }
+        }
+        setInterval(refreshTries, 3000);
+
         $('send').onclick = sendMessage;
         $('add-room').onclick = () => { $('new-room-row').hidden = !$('new-room-row').hidden; if (!$('new-room-row').hidden) $('new-room').focus(); };
         $('new-room').addEventListener('keydown', (e) => {

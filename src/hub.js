@@ -28,6 +28,9 @@ db.serialize(() => {
         id INTEGER PRIMARY KEY AUTOINCREMENT, agent TEXT NOT NULL, summary TEXT NOT NULL, files TEXT NOT NULL,
         room_id TEXT, assigned_by TEXT, status TEXT NOT NULL DEFAULT 'open', note TEXT,
         created DATETIME DEFAULT CURRENT_TIMESTAMP, finished DATETIME)`);
+    // Builds a developer asked the owner to try before committing (see POST /try).
+    db.run(`CREATE TABLE IF NOT EXISTS tries (id INTEGER PRIMARY KEY AUTOINCREMENT, agent TEXT NOT NULL, message_id INTEGER, room_id TEXT,
+        program TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', created DATETIME DEFAULT CURRENT_TIMESTAMP)`);
 });
 const all = (sql, args) => new Promise((resolve, reject) => db.all(sql, args, (err, rows) => (err ? reject(err) : resolve(rows))));
 const get = (sql, args) => new Promise((resolve, reject) => db.get(sql, args, (err, row) => (err ? reject(err) : resolve(row))));
@@ -293,6 +296,77 @@ app.post('/push/approve', async (req, res) => {
 // Tasks. Files are compared case-insensitively with forward slashes; two open tasks for different
 // agents may not share a file, so parallel work never edits the same file twice.
 const normFile = (f) => String(f).trim().replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
+// Trying a change before it is committed: a developer builds in its own folder and asks (POST /try). The page
+// shows Launch, Looks good and Needs changes on that message. Launch only ever starts the program at
+// agents.json "project": { "try_path" } inside that developer's folder; the owner's answer goes back to the
+// developer, so a feature is committed once, after the owner is happy with it.
+const tryPath = () => settings().project?.try_path || null;
+const agentFolder = (agent) => settings().agents?.[agent]?.folder || path.join(settings().project?.dir || '', agent);
+
+app.post('/try', async (req, res) => {
+    const { agent, summary, check, room } = req.body || {};
+    if (!agent || !summary) return res.status(400).json({ error: 'agent and summary are required' });
+    if (!tryPath()) return res.status(404).json({ error: 'trying builds is not configured (agents.json "project" has no "try_path")' });
+    const program = path.join(agentFolder(agent), tryPath());
+    if (!require('fs').existsSync(program)) return res.status(409).json({ error: `no build at ${program}. Build first, then ask again.` });
+    try {
+        // One open question per developer: a new build replaces the old one.
+        await run(`UPDATE tries SET status = 'replaced' WHERE agent = ? AND status = 'open'`, [agent]);
+        const posted = await postAs(agent, room || defaultRoom(),
+            `${owner()}: ${agent} has a build for you to try (not committed yet).\n${summary}${check ? `\nWhat to check: ${check}` : ''}\nUse Launch on this message, then Looks good or Needs changes.`);
+        const inserted = await run('INSERT INTO tries (agent, message_id, room_id, program) VALUES (?, ?, ?, ?)', [agent, posted.id, posted.room_id, program]);
+        res.json({ id: inserted.lastID, message_id: posted.id });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/tries', async (req, res) => {
+    try { res.json({ tries: await all(`SELECT id, agent, message_id, room_id, status FROM tries WHERE status = 'open' ORDER BY id DESC`, []) }); }
+    catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+async function openTry(id) {
+    const row = await get('SELECT * FROM tries WHERE id = ?', [id]);
+    if (!row) throw Object.assign(new Error(`no try #${id}`), { status: 404 });
+    if (row.status !== 'open') throw Object.assign(new Error(`try #${id} is ${row.status}; the developer has a newer build or it was answered`), { status: 409 });
+    return row;
+}
+
+app.post('/tries/:id/launch', async (req, res) => {
+    try {
+        const row = await openTry(req.params.id);
+        if (!require('fs').existsSync(row.program)) return res.status(409).json({ error: `the build is gone: ${row.program}` });
+        const child = spawn(row.program, [], { cwd: path.dirname(row.program), detached: true, stdio: 'ignore' });
+        // Wait for Windows to start it or refuse it (Smart App Control can block an unsigned build), so the page
+        // can say which.
+        await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
+        child.unref();
+        res.json({ status: 'launched', program: row.program });
+    } catch (err) {
+        hubLog(`try #${req.params.id} launch failed: ${err.message}`);
+        res.status(err.status || 500).json({ error: err.status ? err.message : `Windows did not start the build: ${err.message}` });
+    }
+});
+
+app.post('/tries/:id/approve', async (req, res) => {
+    try {
+        const row = await openTry(req.params.id);
+        await run(`UPDATE tries SET status = 'approved' WHERE id = ?`, [row.id]);
+        await postAs(owner(), row.room_id || defaultRoom(), `${row.agent}: looks good (try #${row.id}). Commit it, run the ready check, and add it to Ready for QE.`);
+        res.json({ status: 'approved' });
+    } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+});
+
+app.post('/tries/:id/changes', async (req, res) => {
+    const note = String((req.body || {}).note || '').trim();
+    if (!note) return res.status(400).json({ error: 'say what needs changing' });
+    try {
+        const row = await openTry(req.params.id);
+        await run(`UPDATE tries SET status = 'changes' WHERE id = ?`, [row.id]);
+        await postAs(owner(), row.room_id || defaultRoom(), `${row.agent}: needs changes (try #${row.id}): ${note}\nKeep it uncommitted, fix it, rebuild, and ask again with ask_to_try.`);
+        res.json({ status: 'changes' });
+    } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+});
+
 const taskRow = (t) => ({ ...t, files: JSON.parse(t.files) });
 
 app.get('/tasks', async (req, res) => {

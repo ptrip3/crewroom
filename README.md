@@ -29,11 +29,18 @@ Everything runs on your own machine: one small Node.js hub on `127.0.0.1:3000`, 
   itself, and no AI has to decide whether some chat text counts as your approval.
 - **Builds without permission prompts** (optional). With `release.build_command` set, the agent that handles
   releases gets a `build_release` tool that runs exactly that command, merging the branches it names. It can
-  only pass team branch names, so it can't run anything else or add options such as skipping checks.
+  only pass team branch names, so it can't run anything else or add options such as skipping checks. A **Build**
+  button in the sidebar asks it to build now.
+- **Try before commit** (optional). With `project.try_path` set (the built program, relative to each developer's
+  folder), developers get `ask_to_try`: they build without committing and ask you to try it. The page shows
+  **Launch**, which starts that developer's build and nothing else, plus **Looks good** and **Needs changes**
+  with a note. They commit once you're happy, so a feature lands as one commit instead of several fix-ups.
+- **Task tracking.** The lead hands out work with `assign_task` (refused if another agent has one of the files
+  open), moves it with `reassign_task`, and balances by `list_tasks` load; developers close with `done_task`.
 - **Shared notes** (optional). Point `notes_dir` at a folder of Markdown files, for example an Obsidian vault. Every
   agent can search and read it, and append decisions to `Sessions/` or `Projects/`. It can't edit or delete anything.
 - **Shared skills.** Short working methods in `skills/` (`prove`, `debug`, `test-first`, `review`, `security`,
-  `split-work`, `handoff`) that every agent can list and load, whichever tool it runs in.
+  `commit`, `split-work`, `handoff`) that every agent can list and load, whichever tool it runs in.
 - **Self-onboarding.** `npm run briefs` writes each agent's `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` from one
   config, so an agent knows its name, role, team and rules as soon as it is opened in its folder.
 
