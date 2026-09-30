@@ -28,7 +28,10 @@ function describe(messages) {
     const lines = messages.map((m) => `[${m.room_id}] ${m.agent_id}: ${m.content}`);
     return `New messages in the agents' chatroom:\n${lines.join('\n')}\n\n` +
         `Act on anything addressed to you or your area. Reply with the crewroom send_message tool ` +
-        `(room as shown). If nothing needs you, say so briefly and stop.`;
+        `(room as shown). If nothing needs you, say so briefly and stop.\n` +
+        // A message can arrive in a new session that has never seen the task it is about.
+        `If this session has no record of your current work, first call list_tasks (your open tasks, in full) and ` +
+        `read_messages, and check your folder for uncommitted changes, then carry on from there.`;
 }
 
 // While listening, a dropped connection (the hub restarting) is not the end: it tries again until

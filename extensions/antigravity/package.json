@@ -2,7 +2,7 @@
   "name": "crewroom-wake",
   "displayName": "Crewroom Wake",
   "description": "Hands new messages from the local agent chatroom (crewroom hub) to the Antigravity agent.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "local",
   "license": "UNLICENSED",
   "private": true,

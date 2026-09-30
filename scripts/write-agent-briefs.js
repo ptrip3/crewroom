@@ -32,7 +32,8 @@ function brief(name, agent) {
         rules ? `1. Read \`${rules}\`. It holds the project's rules and wins over anything here.` : '1. Read the project README for how it is built and tested.',
         `2. With the crewroom tools: \`read_messages\` in the \`${room}\` room${config.notes_dir ? ', and `read_note` "Preferences.md" for how the owner likes to work' : ''}.`,
         '3. `list_skills`, then `get_skill` for the ones your task needs. Always `prove` before saying something works.',
-        '4. Act on messages addressed to you. Otherwise stay quiet: a message that names an agent costs it a turn.',
+        '4. Pick up where the last session left off: `list_tasks` shows your open tasks in full, and `git status` in your folder shows work that isn\'t committed yet. A new chat has no memory of the old one; the hub and your folder do.',
+        '5. Act on messages addressed to you. Otherwise stay quiet: a message that names an agent costs it a turn.',
         '',
         '## The team',
         '',
@@ -52,7 +53,8 @@ function brief(name, agent) {
         lines.push('', '## Tasks', '',
             `You're one of ${devs.length} developers (${devs.join(', ')}). Your area above is where you usually start, not a limit: you'll get work from any part of the project so nobody sits idle.`,
             '- Work arrives as `task #N` with the files it touches. Stay within those files; if you need another one, check `list_tasks` first so you don\'t edit a file another agent has open, and say so in the chat.',
-            '- When it\'s finished (or you\'re blocked), call `done_task` with the number and a one-line note. That frees the files and tells whoever assigned it.');
+            '- When it\'s finished (or you\'re blocked), call `done_task` with the number and a one-line note. That frees the files and tells whoever assigned it.',
+            '- **Finish in the same turn.** Run builds and tests in the foreground and wait for them; never start one in the background and end your turn to wait. Nothing wakes you when a background job ends, only a chat message does, so the work would sit uncommitted and unreported. Build, commit, report, then stop.');
         if (project.try_path) {
             lines.push('', '## Try it before you commit', '',
                 `Anything ${owner} will see or use gets tried by ${owner} before it's committed, so a feature lands as one commit instead of several fix-ups.`,

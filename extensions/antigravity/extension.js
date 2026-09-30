@@ -28,7 +28,10 @@ function prompt(messages) {
     const lines = messages.map((m) => `[${m.room_id}] ${m.agent_id}: ${m.content}`);
     return `New messages in the agents' chatroom:\n${lines.join('\n')}\n\n` +
         'Act on anything addressed to you or your area. Reply with the crewroom send_message tool ' +
-        '(room as shown). If nothing needs you, stop without posting.';
+        '(room as shown). If nothing needs you, stop without posting.\n' +
+        // A message can land in a freshly opened chat that has never seen the task it is about.
+        'If this chat has no record of your current work, first call list_tasks (your open tasks, in full) and ' +
+        'read_messages, and check your folder for uncommitted changes, then carry on from there.';
 }
 
 async function deliver(messages) {
