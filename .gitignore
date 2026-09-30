@@ -1,5 +1,7 @@
 node_modules/
 # Your own settings, and the chat database and logs, stay on your machine.
 agents.json
+agents.*.json
+!agents.example.json
 data/
 *.vsix
