@@ -44,7 +44,16 @@ function settings() {
 
 // The agent's name: an explicit one, else the folder its session runs in (app-dev, ui-dev, ...).
 function agentFor(cwd, explicit) {
-    return explicit || process.env.AGENT_ID || path.basename(cwd || process.cwd());
+    if (explicit || process.env.AGENT_ID) return explicit || process.env.AGENT_ID;
+    const here = path.resolve(cwd || process.cwd()).toLowerCase();
+    // A session in a subfolder (app\src\Views, performance\results) is still that agent, not a new one
+    // named after the subfolder: match the deepest configured agent folder that contains it.
+    const config = settings();
+    const owner = Object.entries(config.agents || {})
+        .map(([name, agent]) => ({ name, folder: path.resolve(agent.folder || path.join(config.project?.dir || '', name)).toLowerCase() }))
+        .filter(({ folder }) => here === folder || here.startsWith(folder + path.sep))
+        .sort((a, b) => b.folder.length - a.folder.length)[0];
+    return owner ? owner.name : path.basename(cwd || process.cwd());
 }
 
 // Hooks run for every session of an app; only folders under a configured root join the chat.
