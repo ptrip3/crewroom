@@ -15,7 +15,8 @@ const VAULT = (process.env.CREWROOM_NOTES || settings().notes_dir) ? path.resolv
 // Who this session is: set AGENT_ID, otherwise the folder the session was started in
 // (one folder per agent, e.g. frontend, backend, qa), which is how the agents are told apart.
 const AGENT_ID = agentFor(process.cwd());
-const DEFAULT_ROOM = process.env.CREWROOM_ROOM || 'general';
+// The project's room from agents.json, so an agent that names no room lands in the project room, not "general".
+const DEFAULT_ROOM = process.env.CREWROOM_ROOM || settings().default_room || 'general';
 const log = (...args) => console.error('[crewroom]', ...args);
 
 const mcp = new McpServer(
